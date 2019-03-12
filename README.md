@@ -2,8 +2,8 @@
 
 An ES7 decorator for memoising (caching) a method's response
 
-[![Build Status](https://travis-ci.com/Alorel/memoise-decorator.svg?branch=1.0.2)](https://travis-ci.com/Alorel/memoise-decorator)
-[![Coverage Status](https://coveralls.io/repos/github/Alorel/memoise-decorator/badge.svg?branch=1.0.2)](https://coveralls.io/github/Alorel/memoise-decorator?branch=1.0.2)
+[![Build Status](https://travis-ci.com/Alorel/memoise-decorator.svg?branch=1.0.0)](https://travis-ci.com/Alorel/memoise-decorator)
+[![Coverage Status](https://coveralls.io/repos/github/Alorel/memoise-decorator/badge.svg?branch=1.0.0)](https://coveralls.io/github/Alorel/memoise-decorator?branch=1.0.0)
 [![Greenkeeper badge](https://badges.greenkeeper.io/Alorel/memoise-decorator.svg)](https://greenkeeper.io/)
 
 -----

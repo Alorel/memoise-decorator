@@ -15,6 +15,7 @@ An ES7 decorator for memoising (caching) a method's response
 
 
 - [Installation](#installation)
+- [Polyfills Required](#polyfills-required)
 - [Compatibility](#compatibility)
 - [Usage](#usage)
   - [Basic Usage](#basic-usage)
@@ -29,6 +30,9 @@ An ES7 decorator for memoising (caching) a method's response
 
     npm install @aloreljs/memoise-decorator
   
+# Polyfills Required
+
+`Symbol` construction via `Symbol('someName')` must be available.
 
 # Compatibility
 

@@ -20,14 +20,26 @@ interface ProposalDescriptor extends PropertyDescriptor {
 
 const ERR_NOT_A_METHOD = '@Memoise can only decorate methods';
 
+const ROOT: unique symbol = Symbol('@Memoise cache');
+
 const stdSerialiser: SerFn = function (...args: any[]): string {
   return JSON.stringify(args);
 };
 
+function resolveCache(instance: any, methodSym: symbol): any {
+  if (!instance[ROOT]) {
+    Object.defineProperty(instance, ROOT, {value: {}});
+  }
+
+  return instance[ROOT][methodSym] || (instance[ROOT][methodSym] = {});
+}
+
 function createMemoisableFn(serialiser: SerFn, origFn: Function): Function {
-  const cache: any = {};
+  const sym: unique symbol = Symbol(origFn.name || '');
 
   return function (this: any): any {
+    const cache: any = resolveCache(this, sym);
+
     const serialisedArgs = serialiser.apply(this, <any>arguments);
     if (!cache[serialisedArgs]) {
       cache[serialisedArgs] = origFn.apply(this, <any>arguments);

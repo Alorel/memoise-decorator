@@ -49,9 +49,9 @@ describe(_.startCase(TEST_TYPE), () => {
     });
 
     it('4th fetch', () => {
-      expect(inst.meth2(5)).to.eq(10);
-      expect(inst.gets).to.eq(2);
-      expect(inst.gets2).to.eq(1);
+      expect(inst.meth2(5)).to.eq(10, 'Return value');
+      expect(inst.gets).to.eq(2, 'Gets');
+      expect(inst.gets2).to.eq(1, 'Gets2');
     });
   });
 
@@ -208,6 +208,26 @@ describe(_.startCase(TEST_TYPE), () => {
       it('3rd call should return 3', () => {
         expect(Class.meth({foo: 2, bar: 3}));
       });
+    });
+  });
+
+  describe('Cross-instance', () => {
+    class MyClass {
+      static gets = 0;
+
+      @Memoise()
+      meth(v) {
+        MyClass.gets++;
+
+        return this;
+      }
+    }
+
+    it('The memo cache should not persist cross-instance', () => {
+      new MyClass().meth(1).meth(1);
+      new MyClass().meth(1).meth(1);
+
+      expect(MyClass.gets).to.eq(2);
     });
   });
 

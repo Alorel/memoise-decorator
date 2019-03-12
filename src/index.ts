@@ -1,33 +1,100 @@
-export function Memoise(serialiser: Memoise.ArgSerialiserFn = JSON.stringify): MethodDecorator {
-  return (target: any, prop: PropertyKey, desc: PropertyDescriptor): PropertyDescriptor => {
+type SerFn = Memoise.ArgSerialiserFn;
+
+interface ProposalDescriptor extends PropertyDescriptor {
+  descriptor: ProposalDescriptor; // Babel impl
+
+  extras: Partial<ProposalDescriptor>[];
+
+  key: string;
+
+  kind: string;
+
+  method: Function;
+
+  placement: string;
+
+  initialize(): any;
+
+  initializer(): any;
+}
+
+const ERR_NOT_A_METHOD = '@Memoise can only decorate methods';
+
+const stdSerialiser: SerFn = function (...args: any[]): string {
+  return JSON.stringify(args);
+};
+
+function createMemoisableFn(serialiser: SerFn, origFn: Function): Function {
+  const cache: any = {};
+
+  return function (this: any): any {
+    const serialisedArgs = serialiser.apply(this, <any>arguments);
+    if (!cache[serialisedArgs]) {
+      cache[serialisedArgs] = origFn.apply(this, <any>arguments);
+    }
+
+    return cache[serialisedArgs];
+  };
+}
+
+function decorateLegacy(serialiser: SerFn,
+                        target: any,
+                        prop: PropertyKey,
+                        desc: PropertyDescriptor): PropertyDescriptor {
+  if (!desc) {
+    desc = <any>Object.getOwnPropertyDescriptor(target, prop);
     if (!desc) {
-      desc = <any>Object.getOwnPropertyDescriptor(target, prop);
-      if (!desc) {
-        throw new Error('Unable to resolve property descriptor for @Memoise');
-      }
+      throw new Error('Unable to resolve property descriptor for @Memoise');
     }
+  }
 
-    if (typeof desc.value !== 'function') {
-      throw new Error('@Memoise can only decorate methods');
-    }
+  if (typeof desc.value !== 'function') {
+    throw new Error(ERR_NOT_A_METHOD);
+  }
 
-    desc = Object.assign({}, desc);
-    const orig: Function = <Function>desc.value;
-    const cache: any = {};
+  return Object.assign({}, desc, {value: createMemoisableFn(serialiser, desc.value)});
+}
 
-    desc.value = function (this: any): any {
-      const serialisedArgs = serialiser(arguments);
-      if (!cache[serialisedArgs]) {
-        cache[serialisedArgs] = orig.apply(this, <any>arguments);
-      }
+function decorateNew(serialiser: SerFn, desc: ProposalDescriptor): ProposalDescriptor {
+  if (desc.kind !== 'method') {
+    throw new Error(ERR_NOT_A_METHOD);
+  }
 
-      return cache[serialisedArgs];
-    };
+  desc = Object.assign({}, desc);
+  if (desc.descriptor) {
+    desc.descriptor = Object.assign({}, desc.descriptor);
+  }
+  const orig: Function = desc.method || (desc.descriptor || desc).value;
 
-    return desc;
+  if (!orig) {
+    throw new Error('Unable to resolve method');
+  }
+
+  const newFn = createMemoisableFn(serialiser, orig);
+
+  if (desc.descriptor) {
+    desc.descriptor.value = newFn;
+  } else if (desc.method) {
+    desc.method = newFn;
+  } else {
+    desc.value = newFn;
+  }
+
+  return desc;
+}
+
+/**
+ * Memoise the method, caching its response
+ * @param [serialiser=JSON.stringify] Serialiser function for computing cache keys. This accepts the arguments object
+ * and should return a string, number or symbol.
+ */
+export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): MethodDecorator {
+  return (targetOrDesc: any, method: PropertyKey, desc: PropertyDescriptor): any => {
+    return method ? decorateLegacy(serialiser, targetOrDesc, method, desc)
+      : decorateNew(serialiser, targetOrDesc);
   };
 }
 
 export module Memoise {
-  export type ArgSerialiserFn = (v: IArguments) => string;
+  export type ArgSerialiserFn = (...args: any[]) => PropertyKey;
 }

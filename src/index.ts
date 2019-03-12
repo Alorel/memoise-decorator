@@ -22,8 +22,8 @@ const ERR_NOT_A_METHOD = '@Memoise can only decorate methods';
 
 const ROOT: unique symbol = Symbol('@Memoise cache');
 
-const stdSerialiser: SerFn = function (...args: any[]): string {
-  return JSON.stringify(args);
+const stdSerialiser: SerFn = function (): string {
+  return JSON.stringify(arguments);
 };
 
 function resolveCache(instance: any, methodSym: symbol): any {

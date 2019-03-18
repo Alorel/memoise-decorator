@@ -23,6 +23,7 @@ An ES7 decorator for memoising (caching) a method's response
   - [Using Instance Methods as Cache Key Generators](#using-instance-methods-as-cache-key-generators)
     - [Typescript](#typescript)
     - [Babel](#babel)
+  - [Memoising all method calls disregarding parameters](#memoising-all-method-calls-disregarding-parameters)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -121,6 +122,21 @@ class MyClass {
   
   serialiser(num) {
     return num * this.multiplier;
+  }
+}
+```
+
+## Memoising all method calls disregarding parameters
+
+This might be useful for methods that don't accept parameters in the first place.
+
+```javascript
+import {Memoise} from '@aloreljs/memoise-decorator';
+
+class MyClass {
+  @Memoise.all()
+  method() {
+    return 'foo';
   }
 }
 ```

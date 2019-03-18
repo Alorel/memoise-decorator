@@ -107,7 +107,16 @@ export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): Me
   };
 }
 
+function constantFn(): '' {
+  return '';
+}
+
 export module Memoise {
   /** Serialiser function for computing cache keys. This accepts the method arguments. */
   export type ArgSerialiserFn = (...args: any[]) => PropertyKey;
+
+  /** Memoise the output disregarding method parameters */
+  export function all(): MethodDecorator {
+    return Memoise(constantFn);
+  }
 }

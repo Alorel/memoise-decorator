@@ -231,6 +231,31 @@ describe(_.startCase(TEST_TYPE), () => {
     });
   });
 
+  describe('Memoise.all', () => {
+    class Clazz {
+      static gets = 0;
+
+      @Memoise.all()
+      meth(a) {
+        Clazz.gets++;
+
+        return a;
+      }
+    }
+
+    const inst = new Clazz();
+
+    it('First call should increment gets, return foo', () => {
+      expect(inst.meth('foo')).to.eq('foo', 'return');
+      expect(Clazz.gets).to.eq(1, 'gets');
+    });
+
+    it('Second call should not increment gets, should return foo', () => {
+      expect(inst.meth('bar')).to.eq('foo', 'return');
+      expect(Clazz.gets).to.eq(1, 'gets');
+    });
+  });
+
   describe('Errors', () => {
     it('Should throw on non-method decoration', () => {
       expect(() => {

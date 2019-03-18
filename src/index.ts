@@ -108,5 +108,6 @@ export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): Me
 }
 
 export module Memoise {
+  /** Serialiser function for computing cache keys. This accepts the method arguments. */
   export type ArgSerialiserFn = (...args: any[]) => PropertyKey;
 }

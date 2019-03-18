@@ -97,7 +97,7 @@ function decorateNew(serialiser: SerFn, desc: ProposalDescriptor): ProposalDescr
 
 /**
  * Memoise the method, caching its response
- * @param [serialiser=JSON.stringify] Serialiser function for computing cache keys. This accepts the arguments object
+ * @param [serialiser] Serialiser function for computing cache keys. This accepts the method arguments.
  * and should return a string, number or symbol.
  */
 export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): MethodDecorator {

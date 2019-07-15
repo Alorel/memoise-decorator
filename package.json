@@ -48,15 +48,24 @@
     "concurrently": "~4.1.0",
     "coveralls": "~3.0.3",
     "doctoc": "~1.4.0",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.14",
     "mocha": "~6.1.1",
     "nyc": "~14.1.0",
     "rimraf": "~2.6.3",
     "semantic-release": "~15.13.3",
     "source-map-support": "~0.5.10",
     "ts-node": "~8.3.0",
-    "typescript": "~3.3.3"
+    "typescript": "~3.5.3"
   },
   "license": "MIT",
-  "main": "index.js"
+  "main": "index.js",
+  "browser": "_bundle/umd.js",
+  "jsdelivr": "_bundle/umd.min.js",
+  "fesm5": "_bundle/fesm5.js",
+  "esm5": "_bundle/fesm5.js",
+  "fesm2015": "_bundle/fesm2015.js",
+  "esm2015": "_bundle/fesm5.js",
+  "types": "index.d.ts",
+  "module": "_bundle/fesm5.js",
+  "typings": "index.d.ts"
 }

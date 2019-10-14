@@ -266,4 +266,22 @@ describe(_.startCase(TEST_TYPE), () => {
       }).to.throw(/^(@Memoise can only decorate methods|Unable to resolve property descriptor for @Memoise)$/);
     });
   });
+
+  it('Should not be called twice if no arguments are provided', () => {
+    class Clazz {
+      static gets = 0;
+
+      @Memoise()
+      meth() {
+        Clazz.gets++;
+
+        return 1;
+      }
+    }
+
+    const inst = new Clazz();
+    inst.meth();
+    inst.meth();
+    expect(Clazz.gets).to.eq(1);
+  })
 });

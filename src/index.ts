@@ -21,9 +21,11 @@ interface ProposalDescriptor extends PropertyDescriptor {
 const ERR_NOT_A_METHOD = '@Memoise can only decorate methods';
 
 const ROOT: unique symbol = Symbol('@Memoise cache');
+const SERIALISE_ALL: unique symbol = Symbol('@Memoise all');
+const SERIALISE_NOARG: unique symbol = Symbol('@Memoise noarg');
 
-const stdSerialiser: SerFn = function (): string {
-  return JSON.stringify(arguments);
+const stdSerialiser: SerFn = function (): PropertyKey {
+  return arguments.length ? JSON.stringify(arguments) : SERIALISE_NOARG;
 };
 
 function resolveCache(instance: any, methodSym: symbol): any {
@@ -35,7 +37,7 @@ function resolveCache(instance: any, methodSym: symbol): any {
 }
 
 function createMemoisableFn(serialiser: SerFn, origFn: Function): Function {
-  const sym: unique symbol = Symbol(origFn.name || '');
+  const sym: unique symbol = Symbol(origFn.name || /* istanbul ignore next */'');
 
   return function (this: any): any {
     const cache: any = resolveCache(this, sym);
@@ -107,8 +109,8 @@ export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): Me
   };
 }
 
-function constantFn(): '' {
-  return '';
+function constantFn(): PropertyKey {
+  return SERIALISE_ALL;
 }
 
 export module Memoise {

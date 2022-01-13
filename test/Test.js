@@ -1,287 +1,207 @@
 const {expect} = require('chai');
 const _ = require('lodash');
-const {Memoise} = require('../dist');
+const {Memoise, MEMOISE_CACHE} = require('../dist');
 
 describe(_.startCase(TEST_TYPE), () => {
-  describe('Instance serialiser', () => {
-    let inst;
-
-    before('Instantiate', () => {
-      class Class {
-        gets = 0;
-        gets2 = 0;
-
+  describe('Should fail on...', () => {
+    const cases = [
+      ['class decoration', () => {
         @Memoise()
-        meth(v) {
-          this.gets++;
-
-          return v;
+        class Clazz {
         }
-
-        @Memoise()
-        meth2(v) {
-          this.gets2++;
-
-          return v * 2;
+      }],
+      ['getter decoration', () => {
+        class Clazz {
+          @Memoise()
+          get foo() {
+          }
         }
-      }
+      }],
+      ['setter decoration', () => {
+        class Clazz {
+          @Memoise()
+          set foo(_v) {
+          }
+        }
+      }],
+      ['static getter decoration', () => {
+        class Clazz {
+          @Memoise()
+          static get foo() {
+          }
+        }
+      }],
+      ['static setter decoration', () => {
+        class Clazz {
+          @Memoise()
+          static set foo(_v) {
+          }
+        }
+      }],
+      ['property decoration', () => {
+        class Clazz {
+          @Memoise()
+          foo
+        }
+      }],
+      ['static property decoration', () => {
+        class Clazz {
+          @Memoise()
+          static foo
+        }
+      }],
+    ];
 
-      inst = new Class();
-    });
-
-    it('1st fetch', () => {
-      expect(inst.meth(5)).to.eq(5, 'Response != 5');
-      expect(inst.gets).to.eq(1, 'Gets != 1');
-    });
-
-    it('2nd fetch', () => {
-      expect(inst.meth(1)).to.eq(1, 'Response != 1');
-      expect(inst.gets).to.eq(2, 'Gets != 2');
-    });
-
-    it('3rd fetch', () => {
-      expect(inst.meth(5)).to.eq(5, 'Response != 5');
-      expect(inst.gets).to.eq(2, 'Gets != 2');
-    });
-
-    it('gets2 should still be 0', () => {
-      expect(inst.gets2).to.eq(0);
-    });
-
-    it('4th fetch', () => {
-      expect(inst.meth2(5)).to.eq(10, 'Return value');
-      expect(inst.gets).to.eq(2, 'Gets');
-      expect(inst.gets2).to.eq(1, 'Gets2');
-    });
+    for (const [label, fn] of cases) {
+      it(label, () => {
+        expect(fn).to.throw('@Memoise can only decorate methods');
+      });
+    }
   });
 
-  describe('Static serialiser', () => {
-    class Class {
-      static gets = 0;
+  it('Should serialise instance method', () => {
+    class Clazz {
+      constructor() {
+        this.value = 0;
+      }
 
       @Memoise()
-      static meth(v) {
-        this.gets++;
-
-        return v;
+      incrementWithKeys(_a, _b) {
+        return this.value++;
       }
     }
 
-    it('1st fetch', () => {
-      expect(Class.meth(5)).to.eq(5, 'Response != 5');
-      expect(Class.gets).to.eq(1, 'Gets != 1');
-    });
-
-    it('2nd fetch', () => {
-      expect(Class.meth(6)).to.eq(6, 'Response != 6');
-      expect(Class.gets).to.eq(2, 'Gets != 2');
-    });
-
-    it('3rd fetch', () => {
-      expect(Class.meth(5)).to.eq(5, 'Response != 5');
-      expect(Class.gets).to.eq(2, 'Gets != 2');
-    });
+    for (let i = 1; i < 3; i++) {
+      const label = `Instance ${i}: `;
+      const inst1 = new Clazz();
+      expect(inst1.incrementWithKeys('foo', 'bar')).to.eq(0, `${label}: 1st bar`);
+      expect(inst1.incrementWithKeys('foo', 'qux')).to.eq(1, `${label}: 1st qux`);
+      expect(inst1.incrementWithKeys('foo', 'qux')).to.eq(1, `${label}: 2nd qux`);
+      expect(inst1.value).to.eq(2, `${label}: value`);
+    }
   });
 
-  describe('Binding', () => {
-    class Class {
-      static gets = 0;
-      static foo = 'bar';
-      gets = 0;
-      foo = 'qux';
+  it('Should serialise static method', () => {
+    class Clazz {
+      static value = 0;
 
       @Memoise()
-      static meth(v) {
-        this.gets++;
-
-        return `${this.foo}:${v}`;
-      }
-
-      @Memoise()
-      meth(v) {
-        this.gets++;
-
-        return `${this.foo}:${v}`;
+      static incrementWithKeys(_a, _b) {
+        return this.value++;
       }
     }
 
-    const inst = new Class();
-
-    it('Should correctly bind to static', () => {
-      expect(Class.meth(10)).to.eq('bar:10');
-    });
-
-    it('Should correctly bind to instance', () => {
-      expect(inst.meth(11)).to.eq('qux:11');
-    });
+    expect(Clazz.incrementWithKeys('foo', 'bar')).to.eq(0, '1st bar');
+    expect(Clazz.incrementWithKeys('foo', 'qux')).to.eq(1, '1st qux');
+    expect(Clazz.incrementWithKeys('foo', 'qux')).to.eq(1, '2nd qux');
+    expect(Clazz.value).to.eq(2, 'value');
   });
 
-  describe('Custom serialiser', () => {
-    describe('Bound', () => {
+  describe('Cache map', () => {
+    describe('on static', () => {
+      let clazz;
+
+      beforeEach(() => {
+        class Clazz {
+          @Memoise()
+          static s() {
+          }
+        }
+
+        clazz = Clazz;
+      });
+
+      it('Should not have a cache map initially', () => {
+        expect(clazz.s[MEMOISE_CACHE]).to.eq(undefined);
+      });
+
+      it('Should create cache map after first call', () => {
+        clazz.s();
+        expect(clazz.s[MEMOISE_CACHE]).to.deep.eq(new Map([
+          ['[]', undefined]
+        ]));
+      });
+    });
+
+    describe('on instance', () => {
       let inst;
 
-      before('Instantiate', () => {
-        if (TEST_TYPE === 'typescript') {
-          class Class {
-            constructor() {
-              this.num = 2;
-            }
-
-            @Memoise(Class.prototype.instanceSerialiser)
-            meth(a, b) {
-              return `${a}:${b}`;
-            }
-
-            instanceSerialiser(a, b) {
-              this.lastKey = `${a}:${this.num * b}`;
-
-              return this.lastKey;
-            }
+      beforeEach(() => {
+        class Clazz {
+          @Memoise()
+          x() {
           }
-
-          inst = new Class();
-        } else {
-          class Class {
-            constructor() {
-              this.num = 2;
-            }
-
-            @Memoise(function () {
-              return Class.prototype.instanceSerialiser.apply(this, arguments);
-            })
-            meth(a, b) {
-              return `${a}:${b}`;
-            }
-
-            instanceSerialiser(a, b) {
-              this.lastKey = `${a}:${this.num * b}`;
-
-              return this.lastKey;
-            }
-          }
-
-          inst = new Class();
         }
+
+        inst = new Clazz();
       });
 
-      it('lastKey should be undefined first', () => {
-        expect(inst.lastKey).to.be.undefined;
+      it('Should not have a cache map initially', () => {
+        expect(inst.x[MEMOISE_CACHE]).to.eq(undefined);
       });
 
-      it('lastKey should be foo:4', () => {
-        inst.meth('foo', 2);
-        expect(inst.lastKey).to.eq('foo:4');
-      });
-
-      it('lastKey should be bar:10', () => {
-        inst.meth('bar', 5);
-        expect(inst.lastKey).to.eq('bar:10');
-      });
-
-      it('lastKey should be bar:15', () => {
-        inst.num = 3;
-        inst.meth('bar', 5);
-        expect(inst.lastKey).to.eq('bar:15');
+      it('Should create cache map after first call', () => {
+        inst.x();
+        expect(inst.x[MEMOISE_CACHE]).to.deep.eq(new Map([
+          ['[]', undefined]
+        ]));
       });
     });
 
-    describe('Unbound', () => {
-      class Class {
-        constructor() {
-          this.num = 2;
-        }
+    it('Should allow clearing', () => {
+      class C {
+        static callCount = 0;
 
-        @Memoise(o => o.bar)
-        static meth(obj) {
-          return obj.bar;
+        @Memoise()
+        static foo() {
+          this.callCount++;
         }
       }
 
-      it('1st call should return 1', () => {
-        expect(Class.meth({foo: 1, bar: 1}));
-      });
-
-      it('2nd call should return 1', () => {
-        expect(Class.meth({foo: 1, bar: 2}));
-      });
-
-      it('3rd call should return 3', () => {
-        expect(Class.meth({foo: 2, bar: 3}));
-      });
-    });
+      C.foo();
+      C.foo();
+      C.foo[MEMOISE_CACHE].clear();
+      C.foo();
+      expect(C.callCount).to.eq(2);
+    })
   });
 
-  describe('Cross-instance', () => {
-    class MyClass {
-      static gets = 0;
-
-      @Memoise()
-      meth(v) {
-        MyClass.gets++;
-
-        return this;
-      }
-    }
-
-    it('The memo cache should not persist cross-instance', () => {
-      new MyClass().meth(1).meth(1);
-      new MyClass().meth(1).meth(1);
-
-      expect(MyClass.gets).to.eq(2);
-    });
-  });
-
-  describe('Memoise.all', () => {
-    class Clazz {
-      static gets = 0;
+  it('Memoise.all should memoise every subsequent call', () => {
+    class C {
+      static counter = 0;
 
       @Memoise.all()
-      meth(a) {
-        Clazz.gets++;
-
-        return a;
+      static foo() {
+        return ++this.counter;
       }
     }
 
-    const inst = new Clazz();
-
-    it('First call should increment gets, return foo', () => {
-      expect(inst.meth('foo')).to.eq('foo', 'return');
-      expect(Clazz.gets).to.eq(1, 'gets');
-    });
-
-    it('Second call should not increment gets, should return foo', () => {
-      expect(inst.meth('bar')).to.eq('foo', 'return');
-      expect(Clazz.gets).to.eq(1, 'gets');
-    });
+    C.foo('a');
+    C.foo('b');
+    expect(C.foo[MEMOISE_CACHE]).to.deep.eq(new Map([[null, 1]]), 'first check');
   });
 
-  describe('Errors', () => {
-    it('Should throw on non-method decoration', () => {
-      expect(() => {
-        class C {
-          @Memoise()
-          prop;
-        }
-      }).to.throw(/^(@Memoise can only decorate methods|Unable to resolve property descriptor for @Memoise)$/);
-    });
-  });
+  it('Should accept a custom serialiser', () => {
+    class C {
+      constructor() {
+        this.start = 'ci';
+        this.fooCalls = 0;
+      }
 
-  it('Should not be called twice if no arguments are provided', () => {
-    class Clazz {
-      static gets = 0;
-
-      @Memoise()
-      meth() {
-        Clazz.gets++;
-
-        return 1;
+      @Memoise(function (a, b) {
+        return `${this.start}:${a}:${b}`;
+      })
+      foo(a, b) {
+        this.fooCalls++;
+        return `${this.start}:${a + b}`;
       }
     }
 
-    const inst = new Clazz();
-    inst.meth();
-    inst.meth();
-    expect(Clazz.gets).to.eq(1);
-  })
+    const inst = new C();
+    const expectation = 'ci:2';
+    expect(inst.foo(1, 1)).to.eq(expectation, '1st insert');
+    expect(inst.foo(1, 1)).to.eq(expectation, '2nd insert');
+    expect(inst.fooCalls).to.eq(1, 'foo calls');
+    expect(inst.foo[MEMOISE_CACHE]).to.deep.eq(new Map([['ci:1:1', expectation]]));
+  });
 });

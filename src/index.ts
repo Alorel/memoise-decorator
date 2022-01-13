@@ -1,124 +1,102 @@
-type SerFn = Memoise.ArgSerialiserFn;
+import type {
+  ProposalDescriptor,
+  SerialiseFactory} from './common';
+import {
+  constantMemoiseFactory,
+  createMemoisedMethod,
+  dynamicMemoiseFactory,
+  jsonStringifySerialiser,
+  MEMOISE_ALL,
+  MEMOISE_CACHE,
+  SerialiserFn,
+  Strings
+} from './common';
 
-interface ProposalDescriptor extends PropertyDescriptor {
-  descriptor: ProposalDescriptor; // Babel impl
-
-  extras: Partial<ProposalDescriptor>[];
-
-  key: string;
-
-  kind: string;
-
-  method: Function;
-
-  placement: string;
-
-  initialize(): any;
-
-  initializer(): any;
-}
-
-const ERR_NOT_A_METHOD = '@Memoise can only decorate methods';
-
-const ROOT: unique symbol = Symbol('@Memoise cache');
-const SERIALISE_ALL: unique symbol = Symbol('@Memoise all');
-const SERIALISE_NOARG: unique symbol = Symbol('@Memoise noarg');
-
-const stdSerialiser: SerFn = function (): PropertyKey {
-  return arguments.length ? JSON.stringify(arguments) : SERIALISE_NOARG;
-};
-
-function resolveCache(instance: any, methodSym: symbol): any {
-  if (!instance[ROOT]) {
-    Object.defineProperty(instance, ROOT, {value: {}});
+function decorateLegacy(
+  serialiser: SerialiserFn,
+  methodName: PropertyKey,
+  descriptor: PropertyDescriptor | null,
+  factory: SerialiseFactory
+): PropertyDescriptor {
+  if (!descriptor || typeof descriptor.value !== 'function') {
+    throw new Error(Strings.MethodError);
   }
 
-  return instance[ROOT][methodSym] || (instance[ROOT][methodSym] = {});
-}
+  const {configurable, enumerable, value: method} = descriptor;
 
-function createMemoisableFn(serialiser: SerFn, origFn: Function): Function {
-  const sym: unique symbol = Symbol(origFn.name || /* istanbul ignore next */'');
+  return {
+    configurable,
+    enumerable,
+    value: function memoiseHandler(this: any): any {
+      const memoisedMethod = createMemoisedMethod(serialiser, method as any, factory);
+      Object.defineProperty(this, methodName, {configurable, enumerable, value: memoisedMethod});
 
-  return function (this: any): any {
-    const cache: any = resolveCache(this, sym);
-
-    const serialisedArgs = serialiser.apply(this, <any>arguments);
-    if (!cache[serialisedArgs]) {
-      cache[serialisedArgs] = origFn.apply(this, <any>arguments);
+      return memoisedMethod.apply(this, arguments as any);
     }
-
-    return cache[serialisedArgs];
   };
 }
 
-function decorateLegacy(serialiser: SerFn,
-                        target: any,
-                        prop: PropertyKey,
-                        desc: PropertyDescriptor): PropertyDescriptor {
-  if (!desc) {
-    desc = <any>Object.getOwnPropertyDescriptor(target, prop);
-    if (!desc) {
-      throw new Error('Unable to resolve property descriptor for @Memoise');
-    }
-  }
-
-  if (typeof desc.value !== 'function') {
-    throw new Error(ERR_NOT_A_METHOD);
-  }
-
-  return Object.assign({}, desc, {value: createMemoisableFn(serialiser, desc.value)});
-}
-
-function decorateNew(serialiser: SerFn, desc: ProposalDescriptor): ProposalDescriptor {
+function decorateNew(
+  serialiser: SerialiserFn,
+  desc: ProposalDescriptor,
+  factory: SerialiseFactory
+): ProposalDescriptor {
   if (desc.kind !== 'method') {
-    throw new Error(ERR_NOT_A_METHOD);
+    throw new Error(Strings.MethodError);
   }
 
-  desc = Object.assign({}, desc);
-  if (desc.descriptor) {
-    desc.descriptor = Object.assign({}, desc.descriptor);
-  }
-  const orig: Function = desc.method || (desc.descriptor || desc).value;
+  const method: SerialiserFn = (desc.method as any || (desc.descriptor || desc).value);
 
-  if (!orig) {
-    throw new Error('Unable to resolve method');
+  if (typeof method !== 'function') {
+    throw new Error(Strings.MethodError);
   }
 
-  const newFn = createMemoisableFn(serialiser, orig);
+  const {configurable, enumerable} = desc.descriptor || desc;
+  const methodName = desc.key;
 
-  if (desc.descriptor) {
-    desc.descriptor.value = newFn;
-  } else if (desc.method) {
-    desc.method = newFn;
-  } else {
-    desc.value = newFn;
+  function instancedMemoiseHandler(this: any): any {
+    const memoisedMethod = createMemoisedMethod(serialiser, method as any, factory);
+    Object.defineProperty(this, methodName, {configurable, enumerable, value: memoisedMethod});
+
+    return memoisedMethod.apply(this, arguments as any);
   }
 
-  return desc;
+  return {
+    configurable,
+    descriptor: {
+      configurable,
+      enumerable,
+      value: instancedMemoiseHandler
+    },
+    enumerable,
+    key: methodName,
+    kind: 'method',
+    method: instancedMemoiseHandler,
+    placement: desc.placement,
+    value: instancedMemoiseHandler
+  };
 }
 
 /**
- * Memoise the method, caching its response
- * @param [serialiser] Serialiser function for computing cache keys. This accepts the method arguments.
- * and should return a string, number or symbol.
+ * Memoise the method, caching its response. Once decorated and called for the first time, the decorated method will
+ * get a {@link MEMOISE_CACHE} property.
+ *
+ * <strong><u>WARNING</u>: When decorating instance methods, only call those methods with "this" set to a class instance,
+ * i.e. don't do <code>MyClass.prototype.decoratedMethod()</code>, otherwise every class instance after that call will
+ * end up sharing a cache</strong>
+ * @param serialiser See {@link SerialiserFn}. Defaults to a serialiser that JSON.stringifies the arguments.
+ * @throws {Error} When decorating non-methods
  */
-export function Memoise(serialiser: Memoise.ArgSerialiserFn = stdSerialiser): MethodDecorator {
-  return (targetOrDesc: any, method: PropertyKey, desc: PropertyDescriptor): any => {
-    return method ? decorateLegacy(serialiser, targetOrDesc, method, desc)
-      : decorateNew(serialiser, targetOrDesc);
+function Memoise(serialiser: SerialiserFn = jsonStringifySerialiser): MethodDecorator {
+  const factory: SerialiseFactory = serialiser === MEMOISE_ALL ? constantMemoiseFactory : dynamicMemoiseFactory;
+
+  return function MemoiseDecorator(targetOrDesc: any, method: PropertyKey, desc: PropertyDescriptor): any {
+    return method ? decorateLegacy(serialiser, method, desc, factory) : decorateNew(serialiser, targetOrDesc, factory);
   };
 }
 
-function constantFn(): PropertyKey {
-  return SERIALISE_ALL;
-}
+Memoise.all = function all(): MethodDecorator {
+  return Memoise(MEMOISE_ALL);
+};
 
-export module Memoise {
-  /** Serialiser function for computing cache keys. This accepts the method arguments. */
-  export type ArgSerialiserFn = (...args: any[]) => PropertyKey;
-
-  /** Memoise the output disregarding method parameters */
-  export function all(): MethodDecorator {
-    return Memoise(constantFn);
-  }
-}
+export {SerialiserFn, MEMOISE_CACHE, Memoise};

@@ -11,7 +11,6 @@ An ES7 decorator for memoising (caching) a method's response
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-
 - [Installation](#installation)
 - [Polyfills Required](#polyfills-required)
 - [Compatibility](#compatibility)
@@ -22,6 +21,7 @@ An ES7 decorator for memoising (caching) a method's response
     - [Typescript](#typescript)
     - [Babel](#babel)
   - [Memoising all method calls disregarding parameters](#memoising-all-method-calls-disregarding-parameters)
+  - [Direct access to the cache map](#direct-access-to-the-cache-map)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -31,7 +31,7 @@ An ES7 decorator for memoising (caching) a method's response
   
 # Polyfills Required
 
-`Symbol` construction via `Symbol('someName')` must be available.
+`Symbol` construction via `Symbol('someName')` & `Map`s must be available.
 
 # Compatibility
 
@@ -61,13 +61,21 @@ class MyClass {
 
 The decorator uses `JSON.stringify` on the method arguments to generate a cache key by default, which should work for
 most scenarios, but can be inefficient or unusable in others. You can replace it by passing your own cache key
-generator to the decorator function.
+generator to the decorator function. It will be called with the class instance as an argument.
+
+The function can return anything that's uniquely identifiable in a Map.
 
 ```javascript
 import {Memoise} from '@aloreljs/memoise-decorator';
 
 class MyClass {
-  @Memoise((label, data) => `${label}:${data.id}`)
+  constructor() {
+    this.someId = 'foo';
+  }
+  
+  @Memoise(function(label, data) {
+    return `${this.someId}:${label}:${data.id}`
+  })
   someMethod(label, data) {
   }
 }
@@ -137,4 +145,23 @@ class MyClass {
     return 'foo';
   }
 }
+```
+
+## Direct access to the cache map
+
+After being called at least once, the method will get a `MEMOISE_CACHE` property containing the cache.
+
+```javascript
+import {MEMOISE_CACHE, Memoise} from '@aloreljs/memoise-decorator';
+
+class MyClass {
+  @Memoise()
+  method(a) {
+    return a + 10;
+  }
+}
+const instance = new MyClass();
+console.log(instance.method[MEMOISE_CACHE]); // Undefined
+instance.method(instance.method(1));
+console.log(instance.method[MEMOISE_CACHE]); // Map([['[1]', 11]])
 ```

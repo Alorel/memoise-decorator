@@ -5,7 +5,7 @@ import {
   constantMemoiseFactory,
   createMemoisedMethod,
   dynamicMemoiseFactory,
-  jsonStringifySerialiser,
+  defaultSerialiser,
   MEMOISE_ALL,
   MEMOISE_CACHE,
   SerialiserFn,
@@ -87,7 +87,7 @@ function decorateNew(
  * @param serialiser See {@link SerialiserFn}. Defaults to a serialiser that JSON.stringifies the arguments.
  * @throws {Error} When decorating non-methods
  */
-function Memoise(serialiser: SerialiserFn = jsonStringifySerialiser): MethodDecorator {
+function Memoise(serialiser: SerialiserFn = defaultSerialiser): MethodDecorator {
   const factory: SerialiseFactory = serialiser === MEMOISE_ALL ? constantMemoiseFactory : dynamicMemoiseFactory;
 
   return function MemoiseDecorator(targetOrDesc: any, method: PropertyKey, desc: PropertyDescriptor): any {
@@ -99,4 +99,4 @@ Memoise.all = function all(): MethodDecorator {
   return Memoise(MEMOISE_ALL);
 };
 
-export {SerialiserFn, MEMOISE_CACHE, Memoise};
+export {SerialiserFn, MEMOISE_CACHE, Memoise, defaultSerialiser};

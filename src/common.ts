@@ -106,8 +106,7 @@ export function createMemoisedMethod(
 
 /**
  * The default serialiser
- * @internal
  */
-export function jsonStringifySerialiser(...args: any[]): string {
+export function defaultSerialiser(...args: any[]): string {
   return JSON.stringify(args);
 }

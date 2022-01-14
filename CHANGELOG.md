@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/Alorel/memoise-decorator/compare/2.0.0...2.0.1) (2022-01-14)
+
+
+### Bug Fixes
+
+* Expose the default cache key generator ([f997e5f](https://github.com/Alorel/memoise-decorator/commit/f997e5f1e2976eb91726bb8b9e0b340f23329aab))
+
 # [2.0.0](https://github.com/Alorel/memoise-decorator/compare/1.1.1...2.0.0) (2022-01-14)
 
 

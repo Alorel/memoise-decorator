@@ -15,11 +15,12 @@ module.exports = {
   ],
   root: true,
   parserOptions: {
-    project: require('path').join(__dirname, 'tsconfig.json')
+    project: './tsconfig.test.json',
   },
   rules: {
     '@typescript-eslint/consistent-type-imports': ['error', {prefer: 'type-imports'}],
+    'max-classes-per-file': 'off',
     'no-duplicate-imports': 'off',
-    'prefer-rest-params': 'off',
+    'consistent-return': 'off',
   }
 };

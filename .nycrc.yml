@@ -6,11 +6,8 @@ reporter:
 extension:
   - .ts
 require:
-  - ts-node/register
   - source-map-support/register
 exclude:
-  - '**/*.spec.ts'
-  - build/**/*
-  - test/**/*
+  - src/test.ts
 sourceMap: true
 instrument: true

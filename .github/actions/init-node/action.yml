@@ -1,0 +1,18 @@
+name: Set up npm
+description: Set up npm and install dependencies
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v3
+      name: Set up node
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+        registry-url: https://npm.pkg.github.com
+        always-auth: true
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+      env:
+        NODE_AUTH_TOKEN: ${{ github.token }}

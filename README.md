@@ -2,6 +2,9 @@
 
 An ES7 decorator for memoising (caching) a method's response
 
+[![MASTER CI status](https://github.com/Alorel/memoise-decorator/actions/workflows/core.yml/badge.svg)](https://github.com/Alorel/memoise-decorator/actions/workflows/core.yml?query=branch%3Amaster)
+[![crates.io badge](https://img.shields.io/npm/v/%40aloreljs/memoise-decorator)](https://www.npmjs.com/package/%40aloreljs/memoise-decorator)
+[![dependencies badge](https://img.shields.io/librariesio/release/npm/%40aloreljs/memoise-decorator)](https://libraries.io/npm/@aloreljs%2Fmemoise-decorator)
 [![Coverage Status](https://coveralls.io/repos/github/Alorel/memoise-decorator/badge.svg)](https://coveralls.io/github/Alorel/memoise-decorator)
 
 -----

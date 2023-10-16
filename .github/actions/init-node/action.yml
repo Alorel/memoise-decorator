@@ -1,0 +1,20 @@
+name: Set up npm
+description: Set up npm and install dependencies
+inputs:
+  registry:
+    default: https://npm.pkg.github.com
+    description: Registry URL
+  token:
+    description: Auth token
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v3
+      name: Set up node
+      with:
+        node-version-file: .nvmrc
+        cache: npm
+        registry-url: ${{ inputs.registry }}
+        token: ${{ inputs.token }}
+        always-auth: true

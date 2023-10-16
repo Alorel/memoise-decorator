@@ -1,112 +1,234 @@
 name: Core
 on:
-  - push
-  - pull_request
+  push:
+    branches: [master]
+  pull_request: {}
 
+permissions:
+  contents: read
+  packages: read
+  
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    name: Test ${{ matrix.os }}/Node ${{ matrix.node }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-        node:
-          - 16
+    name: Test & Lint
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-      - uses: actions/setup-node@v2
-        name: Set up node
-        with:
-          node-version: ${{ matrix.node }}
-          registry-url: https://npm.pkg.github.com
-      - name: Get NPM cache dir
-        id: npm-cache-dir
-        run: |
-          echo "::set-output name=dir::$(npm config get cache)"
-      - name: Cache NPM
-        uses: actions/cache@v2
-        with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-npm-${{ matrix.node }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-${{ matrix.node }}-
+        uses: actions/checkout@v4
+    
+      - name: Init Node
+        uses: ./.github/actions/init-node
+        
       - name: Install deps
-        run: npm ci --no-fund
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm ci
+        
       - name: Lint
         run: npm run lint
+    
       - name: Test
         run: npm test
+
+      - name: Build
+        run: npm run build
+     
       - name: Upload coverage
-        if: ${{ matrix.os != 'windows-latest' }}
         continue-on-error: true
-        uses: coverallsapp/github-action@v1.1.2
+        uses: coverallsapp/github-action@v2.2.3
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          flag-name: node-${{ matrix.node }}-on-${{ matrix.os }}-${{ github.event_name }}
-#          parallel: true
-#  posttest:
-#    runs-on: ubuntu-latest
-#    needs: test
-#    continue-on-error: true
-#    steps:
-#      - name: Finalise coverage report
-#        uses: coverallsapp/github-action@v1.1.2
-#        with:
-#          github-token: ${{ secrets.GITHUB_TOKEN }}
-#          parallel-finished: true
-  release:
-    name: Release
-    runs-on: ${{ matrix.os }}
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-    needs:
-#      - lint
-      - test
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-        node:
-          - 16
+          file: ./coverage/lcov.info
+          
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.log.outputs.changelog }}
+      release-type: ${{ steps.log.outputs.release-type }}
+      issues-closed: ${{ steps.log.outputs.issues-closed }}
+      in-sync: ${{ steps.log.outputs.in-sync }}
+      should-release: ${{ steps.log.outputs.should-release }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 1000
-      - uses: actions/setup-node@v2
-        name: Set up node
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Conditional args
+        id: args
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: >
+          echo "before=${{ github.ref_name }}" >> $GITHUB_OUTPUT &&
+          echo "until=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+
+      - name: Get last tag
+        id: last-tag
+        uses: alorel-actions/semantic-release-lite/last-tag@v0
         with:
-          node-version: ${{ matrix.node }}
-          registry-url: https://npm.pkg.github.com
-      - name: Get NPM cache dir
-        id: npm-cache-dir
-        run: |
-          echo "::set-output name=dir::$(npm config get cache)"
-      - name: Cache NPM
-        uses: actions/cache@v2
+          before: ${{ steps.args.outputs.before }}
+
+      - name: Generate changelog
+        id: log
+        uses: alorel-actions/semantic-release-lite/generate-changelog@v0
         with:
-          path: ${{ steps.npm-cache-dir.outputs.dir }}
-          key: ${{ runner.os }}-npm-${{ matrix.node }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-${{ matrix.node }}-
-      - name: Install deps
-        run: npm ci --no-fund
+          last-tag: ${{ steps.last-tag.outputs.last-tag }}
+          from: ${{ steps.last-tag.outputs.last-tag }}
+          until: ${{ steps.args.outputs.until || github.sha }}
+          minor-types: |
+            feat: Features
+          patch-types: |
+            fix: Bug Fixes
+            perf: Performance
+          trivial-types: |
+            chore: Maintenance
+            deps: Dependency updates
+            ci: CI & Build
+            build: CI & Build
+            refactor: Refactors
+            docs: Documentation
+
+  sync-check:
+    name: Sync check
+    runs-on: ubuntu-latest
+    needs:
+      - changelog
+      - test
+    if: ${{ needs.changelog.outputs.should-release == 'true' && github.ref == 'refs/heads/master' }}
+    outputs:
+      in-sync: ${{ steps.check.outputs.in-sync }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+        
+      - name: Check
+        id: check
+        uses: alorel-actions/semantic-release-lite/sync-check@v0
+
+  release-git:
+    name: "Release: Git"
+    runs-on: ubuntu-latest
+    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    needs:
+      - changelog
+      - test
+      - sync-check
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+      next-version: ${{ steps.bump.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: 
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GH_TOKEN }}
+          
+      - name: Git identity
+        uses: alorel-actions/git-ident@v1
+
+      - name: Init Node
+        uses: ./.github/actions/init-node
+
+      - name: Bump version
+        id: bump
+        run: echo "version=$(npm version ${{ needs.changelog.outputs.release-type }})" >> $GITHUB_OUTPUT
+        
+      - name: Output SHA
+        id: sha
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+        
+      - name: Push commit
+        run: git push
+        
+      - name: Push tags
+        run: git push --tags
+  
+  release-npm:
+    name: "Release: NPM"
+    runs-on: ubuntu-latest
+    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    needs:
+      - changelog
+      - test
+      - sync-check
+      - release-git
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ needs.release-git.outputs.sha }}
+
+      - name: Init Node (GitHub)
+        uses: ./.github/actions/init-node
+        
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Init Node (NPM)
+        uses: ./.github/actions/init-node
+        with:
+          registry: https://registry.npmjs.org
+          token: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish
+        working-directory: dist
+        run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-node@v2
-        name: Reconfig Node
-        with:
-          node-version: ${{ matrix.node }}
-          registry-url: https://registry.npmjs.org
-      - name: Release
-        run: ./node_modules/.bin/semantic-release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  
+  release-github:
+    name: "Release: GitHub"
+    runs-on: ubuntu-latest
+    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    needs:
+      - changelog
+      - test
+      - sync-check
+      - release-git
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          ref: ${{ needs.release-git.outputs.sha }}
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: false
+          prerelease: false
+          generateReleaseNotes: false
+          commit: ${{ needs.release-git.outputs.sha }}
+          tag: ${{ needs.release-git.outputs.next-version }}
+          body: ${{ needs.changelog.outputs.changelog }}
+          token: ${{ secrets.GH_TOKEN }}
+          
+  notify:
+    name: Notify issues
+    runs-on: ubuntu-latest
+    if: ${{ needs.sync-check.outputs.in-sync == 'true' && needs.changelog.outputs.issues-closed }}
+    needs:
+      - changelog
+      - test
+      - sync-check
+      - release-npm
+      - release-git
+      - release-github
+    permissions:
+      contents: write  
+    steps:
+      - name: Notify
+        uses: alorel-actions/semantic-release-lite/notify@v0
+        with:
+          tag: ${{ needs.release-git.outputs.next-version }}
+          issues: ${{ needs.changelog.outputs.issues-closed }}
+          allow-out-of-sync: true

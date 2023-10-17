@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
   packages: read
-  
+
 jobs:
   test:
     name: Test & Lint
@@ -15,36 +15,51 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-    
-      - name: Init Node
-        uses: ./.github/actions/init-node
-        
+
+      - uses: ./.github/actions/init-node
+        name: Set up node
+        with:
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+
       - name: Install deps
         run: npm ci
-        
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
+
       - name: Lint
         run: npm run lint
-    
+
       - name: Test
         run: npm test
 
       - name: Build
         run: npm run build
-     
+
+      - uses: actions/upload-artifact@v2
+        name: Upload dist
+        with:
+          name: dist
+          retention-days: 1
+          path: dist/
+          if-no-files-found: error
+
       - name: Upload coverage
         continue-on-error: true
         uses: coverallsapp/github-action@v2.2.3
         with:
           file: ./coverage/lcov.info
-          
+  
   changelog:
     name: Changelog
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' }}
+    needs:
+      - test
     outputs:
       changelog: ${{ steps.log.outputs.changelog }}
       release-type: ${{ steps.log.outputs.release-type }}
       issues-closed: ${{ steps.log.outputs.issues-closed }}
-      in-sync: ${{ steps.log.outputs.in-sync }}
       should-release: ${{ steps.log.outputs.should-release }}
     steps:
       - name: Checkout
@@ -86,45 +101,24 @@ jobs:
             refactor: Refactors
             docs: Documentation
 
-  sync-check:
-    name: Sync check
-    runs-on: ubuntu-latest
-    needs:
-      - changelog
-      - test
-    if: ${{ needs.changelog.outputs.should-release == 'true' && github.ref == 'refs/heads/master' }}
-    outputs:
-      in-sync: ${{ steps.check.outputs.in-sync }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-        
-      - name: Check
-        id: check
-        uses: alorel-actions/semantic-release-lite/sync-check@v0
-
   release-git:
     name: "Release: Git"
     runs-on: ubuntu-latest
-    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    if: ${{ needs.changelog.outputs.should-release == 'true' }}
     needs:
       - changelog
       - test
-      - sync-check
     outputs:
       sha: ${{ steps.sha.outputs.sha }}
       next-version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: 
+        with:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ secrets.GH_TOKEN }}
-          
+
       - name: Git identity
         uses: alorel-actions/git-ident@v1
 
@@ -134,26 +128,25 @@ jobs:
       - name: Bump version
         id: bump
         run: echo "version=$(npm version ${{ needs.changelog.outputs.release-type }})" >> $GITHUB_OUTPUT
-        
+
       - name: Output SHA
         id: sha
         shell: bash
         run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-        
+
       - name: Push commit
         run: git push
-        
+
       - name: Push tags
         run: git push --tags
   
   release-npm:
     name: "Release: NPM"
     runs-on: ubuntu-latest
-    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    if: ${{ needs.changelog.outputs.should-release == 'true' }}
     needs:
       - changelog
       - test
-      - sync-check
       - release-git
     steps:
       - name: Checkout
@@ -163,20 +156,21 @@ jobs:
           fetch-tags: true
           ref: ${{ needs.release-git.outputs.sha }}
 
-      - name: Init Node (GitHub)
-        uses: ./.github/actions/init-node
-        
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Init Node (NPM)
+      - name: Init Node
         uses: ./.github/actions/init-node
         with:
-          registry: https://registry.npmjs.org
           token: ${{ secrets.NPM_TOKEN }}
+          registry-url: https://registry.npmjs.org
+
+      - name: Download dist
+        uses: actions/download-artifact@v2
+        with:
+          name: dist
+          path: dist
+
+      - name: Copy over bumped package.json
+        working-directory: dist
+        run: cp ../package.json package.json
 
       - name: Publish
         working-directory: dist
@@ -187,11 +181,12 @@ jobs:
   release-github:
     name: "Release: GitHub"
     runs-on: ubuntu-latest
-    if: ${{ needs.sync-check.outputs.in-sync == 'true' }}
+    if: ${{ needs.changelog.outputs.should-release == 'true' }}
+    permissions:
+      contents: write
     needs:
       - changelog
       - test
-      - sync-check
       - release-git
     steps:
       - name: Checkout
@@ -210,21 +205,19 @@ jobs:
           commit: ${{ needs.release-git.outputs.sha }}
           tag: ${{ needs.release-git.outputs.next-version }}
           body: ${{ needs.changelog.outputs.changelog }}
-          token: ${{ secrets.GH_TOKEN }}
-          
+  
   notify:
     name: Notify issues
     runs-on: ubuntu-latest
-    if: ${{ needs.sync-check.outputs.in-sync == 'true' && needs.changelog.outputs.issues-closed }}
+    if: ${{ needs.changelog.outputs.should-release == 'true' && needs.changelog.outputs.issues-closed }}
     needs:
       - changelog
       - test
-      - sync-check
       - release-npm
       - release-git
       - release-github
     permissions:
-      contents: write  
+      contents: write
     steps:
       - name: Notify
         uses: alorel-actions/semantic-release-lite/notify@v0

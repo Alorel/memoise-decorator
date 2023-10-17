@@ -16,7 +16,12 @@ function applyRename<F extends Function>(origFn: F, label: string, newFn: F): F 
 }
 
 /**
- * Direct access to a memoised method's cache. Only appears after the method's been called at least once.
+ * Cache associated with this function/method if it's been processed with one of:
+ *
+ * - {@link Memoise}
+ * - {@link MemoiseAll}
+ * - {@link memoiseFunction}
+ * - {@link memoiseArglessFunction}
  */
 export const MEMOISE_CACHE: unique symbol = Symbol('Memoise cache');
 
@@ -33,19 +38,35 @@ export type Decorator<T, A extends any[], R> = (
   ctx: ClassMethodDecoratorContext<T, Fn<T, A, R>>
 ) => undefined | Fn<T, A, R>;
 
+/** @see {MEMOISE_CACHE} */
 export interface Cache {
+
+  /** Clear the cache */
   clear(): void;
 
+  /**
+   * Delete a specific cache entry.
+   * @param key The result of passing the method call args through the associated {@link SerialiserFn serialiser fn}
+   */
   delete(key: any): boolean;
 
+  /**
+   * Check if a specific cache entry exists.
+   * @param key See {@link Cache#delete delete()}
+   */
   has(key: any): boolean;
 }
 
-/** The default serialiser */
+/** The default cache key {@link SerialiserFn serialiser}. */
 export function defaultSerialiser(...args: any[]): string {
   return JSON.stringify(args);
 }
 
+/**
+ * Memoise the function's return value based on call arguments
+ * @param fn The function to memoise
+ * @param serialiser Serialiser to use for generating the cache key. Defaults to {@link defaultSerialiser}.
+ */
 export function memoiseFunction<T, A extends [any, ...any[]], R>(
   fn: Fn<T, A, R>,
   serialiser: SerialiserFn<T, A> = defaultSerialiser
@@ -69,6 +90,11 @@ export function memoiseFunction<T, A extends [any, ...any[]], R>(
   return memoisedFunction;
 }
 
+/**
+ * Memoise the function's return value disregarding call arguments,
+ * effectively turning it into a lazily-evaluated value
+ * @param fn The function to memoise
+ */
 export function memoiseArglessFunction<T, R>(fn: Fn<T, [], R>): Fn<T, [], R> {
   let firstCall = true;
   let returnValue: R;

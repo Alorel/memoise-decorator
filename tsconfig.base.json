@@ -16,7 +16,6 @@
     "allowUnusedLabels": false,
     "useUnknownInCatchVariables": false,
     "outDir": "dist",
-    "removeComments": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "noImplicitAny": true,

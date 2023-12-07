@@ -22,5 +22,6 @@ module.exports = {
     'max-classes-per-file': 'off',
     'no-duplicate-imports': 'off',
     'consistent-return': 'off',
+    'prefer-rest-params': 'off',
   }
 };

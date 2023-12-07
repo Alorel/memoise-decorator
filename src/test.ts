@@ -1,370 +1,666 @@
 import {expect} from 'chai';
-import type {Cache} from './core';
-import {defaultSerialiser, Memoise, MEMOISE_CACHE, MemoiseAll, memoiseArglessFunction, memoiseFunction} from './index';
+import type {Cache} from './index';
+import {Memoise, MEMOISE_CACHE, MemoiseAll, memoiseArglessFunction, memoiseFunction} from './index';
 
-/* eslint-disable @typescript-eslint/no-magic-numbers,max-lines-per-function */
+/* eslint-disable @typescript-eslint/no-magic-numbers,class-methods-use-this,max-lines-per-function,no-new,max-lines */
 
-describe('Static', () => {
-  function customSerialiser(num: number): number {
-    return num * 2;
+function abSerialiser(this: Base, a: number, b: number) {
+  return `${a}|${b}`;
+}
+
+function abSSerialiser(this: typeof Base, a: number, b: number) {
+  return `${a}|${b}`;
+}
+
+class Base {
+  public static nMemoed = 0;
+
+  public static nUnmemoed = 0;
+
+  public static rets: any[] = [];
+
+  public get publicCache(): Cache | undefined {
+    return this.memoedInstance[MEMOISE_CACHE];
   }
 
-  class Foo {
-    public static alls = 0;
+  public static initArgChecks(beforeCB: () => void): void {
+    this.initCommon();
+    before(beforeCB);
 
-    public static keys = 0;
+    it('Should have 3 memoed calls', () => {
+      expect(this.nMemoed).to.eq(3);
+    });
+
+    it('All duplicate calls should return same object reference', () => {
+      for (let i = 0; i < this.rets.length; i += 2) {
+        const r1 = this.rets[i];
+        const r2 = this.rets[i + 1];
+
+        expect(Array.isArray(r1)).eq(true, `Idx ${i} is array`);
+        expect(r1).to.eq(r2, `Idx ${i} obj ref`);
+      }
+    });
+  }
+
+  public static initValue(beforeCallback: () => void): void {
+    this.initCommon();
+    before(beforeCallback);
+
+    it('Should have 2 unmemoed called', () => {
+      expect(this.nUnmemoed).to.eq(2);
+    });
+
+    it('Should have 1 memoed call', () => {
+      expect(this.nMemoed).to.eq(1);
+    });
+
+    it('Should return same object reference', () => {
+      expect(this.rets[0]).to.deep.eq({});
+      expect(this.rets[0]).to.eq(this.rets[1]);
+    });
+  }
+
+  public static reset(): void {
+    Base.nMemoed = Base.nUnmemoed = 0;
+    Base.staticArgedPublicDefault[MEMOISE_CACHE]!.clear();
+    Base.#staticArgedPrivateDefault[MEMOISE_CACHE]!.clear();
+    Base.memoedStatic[MEMOISE_CACHE]!.clear();
+    Base.#privateStatic[MEMOISE_CACHE]!.clear();
+  }
+
+  public static runMemoedStatics(): void {
+    this.rets = [this.runMemoedStatic(), this.runMemoedStatic()];
+  }
+
+  public static runPrivateStatics() {
+    this.rets = [this.runPrivateStatic(), this.runPrivateStatic()];
+  }
+
+  public static runStaticArgedPrivateDefaults(): void {
+    this.rets = [
+      this.#staticArgedPrivateDefault(1, 2),
+      this.#staticArgedPrivateDefault(1, 2),
+
+      this.#staticArgedPrivateDefault(1, 1),
+      this.#staticArgedPrivateDefault(1, 1),
+
+      this.#staticArgedPrivateDefault(2, 1),
+      this.#staticArgedPrivateDefault(2, 1)
+    ];
+  }
+
+  public static runStaticArgedPrivateDefaultsS(): void {
+    this.rets = [
+      this.#staticArgedPrivateDefaultS(1, 2),
+      this.#staticArgedPrivateDefaultS(1, 2),
+
+      this.#staticArgedPrivateDefaultS(1, 1),
+      this.#staticArgedPrivateDefaultS(1, 1),
+
+      this.#staticArgedPrivateDefaultS(2, 1),
+      this.#staticArgedPrivateDefaultS(2, 1)
+    ];
+  }
+
+  public static runStaticArgedPublicDefaults(): void {
+    this.rets = [
+      this.staticArgedPublicDefault(1, 2),
+      this.staticArgedPublicDefault(1, 2),
+
+      this.staticArgedPrivateDefault(1, 1),
+      this.staticArgedPrivateDefault(1, 1),
+
+      this.staticArgedPrivateDefault(2, 1),
+      this.staticArgedPrivateDefault(2, 1)
+    ];
+  }
+
+  public static runStaticArgedPublicDefaultsS(): void {
+    this.rets = [
+      this.staticArgedPublicDefaultS(1, 2),
+      this.staticArgedPublicDefaultS(1, 2),
+
+      this.staticArgedPublicDefaultS(1, 1),
+      this.staticArgedPublicDefaultS(1, 1),
+
+      this.staticArgedPublicDefaultS(2, 1),
+      this.staticArgedPublicDefaultS(2, 1)
+    ];
+  }
+
+  public static staticArgedPrivateDefault(a: number, b: number) {
+    return this.#staticArgedPrivateDefault(a, b);
+  }
+
+  @Memoise()
+  public static staticArgedPublicDefault(a: number, b: number) {
+    ++Base.nMemoed;
+    return [a, b] as const;
+  }
+
+  @Memoise(abSSerialiser)
+  public static staticArgedPublicDefaultS(a: number, b: number) {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  protected static runMemoedStatic() {
+    ++Base.nUnmemoed;
+    return this.memoedStatic();
+  }
+
+  protected static runPrivateStatic() {
+    ++this.nUnmemoed;
+    return this.#privateStatic();
+  }
+
+  @MemoiseAll()
+  static #privateStatic() {
+    ++this.nMemoed;
+    return {};
+  }
+
+  @Memoise()
+  static #staticArgedPrivateDefault(a: number, b: number) {
+    ++Base.nMemoed;
+    return [a, b] as const;
+  }
+
+  @Memoise(abSSerialiser)
+  static #staticArgedPrivateDefaultS(a: number, b: number) {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  private static initCommon() {
+    after(Base.reset);
+  }
+
+  @MemoiseAll()
+  private static memoedStatic() {
+    ++Base.nMemoed;
+    return {};
+  }
+
+  public argedInstancePrivateDefaultS(a: number, b: number) {
+    return this.#argedInstancePrivateDefaultS(a, b);
+  }
+
+  @Memoise()
+  public argedInstancePublicDefault(a: number, b: number): [number, number] {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  @Memoise(abSerialiser)
+  public argedInstancePublicDefaultS(a: number, b: number): [number, number] {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  public runInstanceArgedPrivateDefaults(): void {
+    Base.rets = [
+      this.#argedInstancePrivateDefault(1, 2),
+      this.#argedInstancePrivateDefault(1, 2),
+
+      this.#argedInstancePrivateDefault(1, 1),
+      this.#argedInstancePrivateDefault(1, 1),
+
+      this.#argedInstancePrivateDefault(2, 1),
+      this.#argedInstancePrivateDefault(2, 1)
+    ];
+  }
+
+  public runInstanceArgedPrivateDefaultsS(): void {
+    Base.rets = [
+      this.#argedInstancePrivateDefaultS(1, 2),
+      this.#argedInstancePrivateDefaultS(1, 2),
+
+      this.#argedInstancePrivateDefaultS(1, 1),
+      this.#argedInstancePrivateDefaultS(1, 1),
+
+      this.#argedInstancePrivateDefaultS(2, 1),
+      this.#argedInstancePrivateDefaultS(2, 1)
+    ];
+  }
+
+  public runInstanceArgedPublicDefaults(): void {
+    Base.rets = [
+      this.argedInstancePublicDefault(1, 2),
+      this.argedInstancePublicDefault(1, 2),
+
+      this.argedInstancePublicDefault(1, 1),
+      this.argedInstancePublicDefault(1, 1),
+
+      this.argedInstancePublicDefault(2, 1),
+      this.argedInstancePublicDefault(2, 1)
+    ];
+  }
+
+  public runInstanceArgedPublicDefaultsS(): void {
+    Base.rets = [
+      this.argedInstancePublicDefaultS(1, 2),
+      this.argedInstancePublicDefaultS(1, 2),
+
+      this.argedInstancePublicDefaultS(1, 1),
+      this.argedInstancePublicDefaultS(1, 1),
+
+      this.argedInstancePublicDefaultS(2, 1),
+      this.argedInstancePublicDefaultS(2, 1)
+    ];
+  }
+
+  public runPrivateInstances(): void {
+    Base.rets = [this.runPrivateInstance(), this.runPrivateInstance()];
+  }
+
+  public runPublicInstances(): void {
+    Base.rets = [this.runMemoedInstance(), this.runMemoedInstance()];
+  }
+
+  protected runMemoedInstance() {
+    ++Base.nUnmemoed;
+    return this.memoedInstance();
+  }
+
+  protected runPrivateInstance() {
+    ++Base.nUnmemoed;
+    return this.#privateInstance();
+  }
+
+  @Memoise()
+  #argedInstancePrivateDefault(a: number, b: number): [number, number] {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  @Memoise(abSerialiser)
+  #argedInstancePrivateDefaultS(a: number, b: number): [number, number] {
+    ++Base.nMemoed;
+    return [a, b];
+  }
+
+  @MemoiseAll()
+  #privateInstance() {
+    ++Base.nMemoed;
+    return {};
+  }
+
+  @MemoiseAll()
+  private memoedInstance() {
+    ++Base.nMemoed;
+    return {};
+  }
+}
+
+describe('Value return', () => {
+  describe('Private static', () => {
+    Base.initValue(() => Base.runPrivateStatics());
+  });
+
+  describe('Private instance', () => {
+    Base.initValue(() => {
+      new Base(); // warm up
+      return new Base().runPrivateInstances();
+    });
+  });
+
+  describe('Public/protected static', () => {
+    Base.initValue(() => Base.runMemoedStatics());
+  });
+
+  describe('Public/protected instance', () => {
+    let b: Base;
+    Base.initValue(() => {
+      new Base(); // warm up
+      b = new Base();
+      b.runPublicInstances();
+    });
+  });
+});
+
+describe('Default serialiser', () => {
+  describe('Public static', () => {
+    Base.initArgChecks(() => Base.runStaticArgedPublicDefaults());
+  });
+  describe('Private static', () => {
+    Base.initArgChecks(() => Base.runStaticArgedPrivateDefaults());
+  });
+  describe('Public instance', () => {
+    new Base(); // warm up
+    Base.initArgChecks(() => new Base().runInstanceArgedPublicDefaults());
+  });
+  describe('Private instance', () => {
+    new Base(); // warm up
+    Base.initArgChecks(() => new Base().runInstanceArgedPrivateDefaults());
+  });
+});
+
+describe('Custom serialiser', () => {
+  describe('Public static', () => {
+    Base.initArgChecks(() => Base.runStaticArgedPublicDefaultsS());
+  });
+  describe('Private static', () => {
+    Base.initArgChecks(() => Base.runStaticArgedPrivateDefaultsS());
+  });
+  describe('Public instance', () => {
+    new Base(); // warm up
+    Base.initArgChecks(() => new Base().runInstanceArgedPublicDefaultsS());
+  });
+  describe('Private instance', () => {
+    new Base(); // warm up
+    Base.initArgChecks(() => new Base().runInstanceArgedPrivateDefaultsS());
+  });
+});
+
+describe('Concurrent', () => {
+  function inst(
+    label: string,
+    makeValue: (i: Base) => [number, number] | readonly [number, number]
+  ) {
+    function check(v1: any, v2: any) {
+      expect(v1).to.deep.eq([1, 1], 'value');
+      expect(v1).to.deep.eq(v2, 'v1 == v2');
+      expect(v1).to.not.eq(v2, 'v1 !== v2');
+      expect(Base.nMemoed).to.eq(2, 'nMemoed');
+    }
+
+    describe(label, () => {
+      afterEach(Base.reset);
+
+      it('Should not share cache between two instances created before the 1st call', () => {
+        const i1 = new Base();
+        const i2 = new Base();
+
+        const v1 = makeValue(i1);
+        const v2 = makeValue(i2);
+        check(v1, v2);
+      });
+
+      it('Should not share cache between two instances created after the 1st call', () => {
+        const i1 = new Base();
+        const v1 = makeValue(i1);
+
+        const i2 = new Base();
+        const v2 = makeValue(i2);
+        check(v1, v2);
+      });
+    });
+  }
+
+  function stati(
+    label: string,
+    makeValue: () => [number, number] | readonly [number, number]
+  ) {
+    function check(v1: any, v2: any) {
+      expect(v1).to.deep.eq([1, 1], 'value');
+      expect(v1).to.eq(v2, 'v1 === v2');
+      expect(Base.nMemoed).to.eq(1, 'nMemoed');
+    }
+
+    describe(label, () => {
+      afterEach(Base.reset);
+
+      it('Should share cache between two calls', () => {
+        const v1 = makeValue();
+        const v2 = makeValue();
+        check(v1, v2);
+      });
+    });
+  }
+
+  inst('Public instance', i => i.argedInstancePublicDefault(1, 1));
+  inst('Private instance', i => i.argedInstancePrivateDefaultS(1, 1));
+
+  stati('Public static', () => Base.staticArgedPublicDefault(1, 1));
+  stati('Private static', () => Base.staticArgedPrivateDefault(1, 1));
+});
+
+describe('Class extensions', () => {
+  class Sup {
+    public static callCount = 0;
+
+    public static reset(): void {
+      Sup.callCount = 0;
+      Sup.sPub[MEMOISE_CACHE]!.clear();
+    }
 
     @MemoiseAll()
-    public static all(): void {
-      ++this.alls;
+    public static sPub() {
+      return {};
     }
 
-    @Memoise(customSerialiser)
-    public static key(key: number): { key: number } {
-      ++this.keys;
-
-      return {key};
+    @MemoiseAll()
+    iPub() {
+      return {};
     }
   }
 
-  const C_KEY = Foo.key[MEMOISE_CACHE]!;
-  const C_ALL = Foo.all[MEMOISE_CACHE]!;
+  class SubDeco extends Sup {
 
-  afterEach(() => {
-    Foo.alls = Foo.keys = 0;
-    C_KEY.clear();
-    C_ALL.clear();
-  });
-
-  it('Should return function value', () => {
-    expect(Foo.key(10)).to.deep.eq({key: 10});
-  });
-
-  it('Should memoise identical calls', () => {
-    const a = Foo.key(1);
-    Foo.key(0);
-    expect(Foo.key(1)).to.eq(a);
-    expect(Foo.keys).to.eq(2);
-  });
-
-  it('Should not throw on undecorated override', () => {
-    class Undecorated extends Foo {
-      public static override key(key: number): { key: number } {
-        return super.key(key);
-      }
+    @MemoiseAll()
+    public override iPub() {
+      return [super.iPub(), Sup.callCount++] as const;
     }
 
-    Undecorated.key(1);
-  });
-
-  describe('Private methods', () => {
-    const INPUT = 5;
-
-    for (const rawDecorator of [Memoise, MemoiseAll]) {
-      const decorator = rawDecorator as typeof Memoise;
-      const expectation = rawDecorator === Memoise ? INPUT : undefined;
-
-      describe(`@${decorator.name}`, () => {
-        class Bar {
-          public static noop(num: number): { num: number } {
-            return this.#x(num);
-          }
-
-          @decorator()
-          static #x(num: number): { num: number } {
-            return {num};
-          }
-        }
-
-        it('Should memoise the response', () => {
-          const r = Bar.noop(INPUT);
-
-          expect(r).to.deep.eq({num: expectation}, 'deep');
-          expect(Bar.noop(INPUT)).to.eq(r, 'shallow');
-        });
-      });
+    @MemoiseAll()
+    public static override sPub() {
+      return [super.sPub(), Sup.callCount++] as const;
     }
-  });
+  }
 
-  describe('.has(), .delete() & .clear()', () => {
-    const K_0 = customSerialiser(0);
-    const K_1 = customSerialiser(1);
+  class SubUndeco extends Sup {
 
-    it('Should return false for both keys initially', () => {
-      expect(C_KEY.has(K_0)).to.eq(false, 'initial .has(K0)');
-      expect(C_KEY.has(K_1)).to.eq(false, 'initial .has(K1)');
-    });
-
-    it('Should return true appropriately post-call', () => {
-      Foo.key(0);
-
-      expect(C_KEY.has(K_0)).to.eq(true, 'after .key(0) .has(K0)');
-      expect(C_KEY.has(K_1)).to.eq(false, 'after .key(0) .has(K1)');
-    });
-
-    it('Should return false post-clear', () => {
-      Foo.key(0);
-      C_KEY.clear();
-
-      expect(C_KEY.has(K_0)).to.eq(false, 'after .clear() .has(K0)');
-      expect(C_KEY.has(K_1)).to.eq(false, 'after .clear() .has(K1)');
-    });
-
-    it('Should use provided serialiser', () => {
-      Foo.key(10);
-      expect(C_KEY.has(customSerialiser(10))).to.eq(true, 'custom');
-      expect(C_KEY.has(defaultSerialiser(10))).to.eq(false, 'default');
-    });
-
-    it('Should delete keys', () => {
-      Foo.key(0);
-      Foo.key(1);
-      C_KEY.delete(K_0);
-
-      expect(C_KEY.has(K_0)).to.eq(false, 'after .delete(K0) .has(K0)');
-      expect(C_KEY.has(K_1)).to.eq(true, 'after .delete(K0) .has(K1)');
-    });
-  });
-
-  describe('When overriding a decorated method…', () => {
-    class Sub extends Foo {
-      public static sKeys = 0;
-
-      @Memoise()
-      public static override key(key: number): { key: number } {
-        ++this.sKeys;
-
-        return super.key(key);
-      }
+    public override iPub() {
+      return [super.iPub(), Sup.callCount++] as const;
     }
 
-    const C_SKEYS = Sub.key[MEMOISE_CACHE]!;
+    public static override sPub() {
+      return [super.sPub(), Sup.callCount++] as const;
+    }
+  }
 
-    beforeEach(() => {
-      Sub.key(0);
-      Sub.key(0);
-      Sub.key(1);
+  afterEach(Sup.reset);
+
+  describe('Instance', () => {
+    it('Should only memoise super call if sub call is not decorated', () => {
+      const inst = new SubUndeco();
+      const r1 = inst.iPub();
+      const r2 = inst.iPub();
+
+      expect(r1).to.not.eq(r2, 'r1 !== r2');
+      expect(r1[0]).to.eq(r2[0], 'r1[0] === r2[0]');
+      expect([r1[1], r2[1]]).to.deep.eq([0, 1], 'calls');
     });
 
-    afterEach(() => {
-      C_SKEYS.clear();
-      Sub.sKeys = Sub.keys = Sub.alls = 0;
+    it('Should memoise both calls if sub call is decorated', () => {
+      const inst = new SubDeco();
+      const r1 = inst.iPub();
+      const r2 = inst.iPub();
+
+      expect(r1).to.eq(r2, 'r1 === r2');
+      expect(r1[0]).to.eq(r2[0], 'r1[0] === r2[0]');
+      expect([r1[1], r2[1]]).to.deep.eq([0, 0], 'calls');
+    });
+  });
+
+  describe('Static', () => {
+    it('Should only memoise super call if sub call is not decorated', () => {
+      const r1 = SubUndeco.sPub();
+      const r2 = SubUndeco.sPub();
+
+      expect(r1).to.not.eq(r2, 'r1 !== r2');
+      expect(r1[0]).to.eq(r2[0], 'r1[0] === r2[0]');
+      expect([r1[1], r2[1]]).to.deep.eq([0, 1], 'calls');
     });
 
-    it('Should memoise child class', () => {
-      expect(Sub.sKeys).to.eq(2);
-    });
+    it('Should memoise both calls if sub call is decorated', () => {
+      const r1 = SubDeco.sPub();
+      const r2 = SubDeco.sPub();
 
-    it('Should memoise superclass', () => {
-      expect(Sub.keys).to.eq(2);
+      expect(r1).to.eq(r2, 'r1 === r2');
+      expect(r1[0]).to.eq(r2[0], 'r1[0] === r2[0]');
+      expect([r1[1], r2[1]]).to.deep.eq([0, 0], 'calls');
     });
   });
 });
 
-describe('Instance', () => {
-  class Foo {
-    public calls = 0;
-
-    @Memoise()
-    public bar(key: number): { key: number } {
-      ++this.calls;
-
-      return {key};
-    }
-  }
-
-  it('Should return function value', () => {
-    expect(new Foo().bar(10)).to.deep.eq({key: 10});
-  });
-
-  it('Should memoise identical calls', () => {
-    const inst = new Foo();
-    const a = inst.bar(1);
-    inst.bar(0);
-    const b = inst.bar(1);
-
-    expect(inst.calls).to.eq(2);
-    expect(a).to.eq(b);
-  });
-
-  it('Should throw on undecorated override', () => {
-    class Undecorated extends Foo {
-      public override bar(key: number): { key: number } {
-        return super.bar(key);
+describe('Cache', () => {
+  describe('Access', () => {
+    class Source {
+      public static reset(): void {
+        Source.sPub[MEMOISE_CACHE]!.clear();
+        Source.#sPriv[MEMOISE_CACHE]!.clear();
       }
-    }
-
-    expect(() => new Undecorated()).to
-      .throw('The `bar` method is decorated with @Memoise or @MemoiseAll in the superclass; decorated instance methods cannot use inheritance unless the subclass method is decorated with @Memoise or @MemoiseAll as well.');
-  });
-
-  describe('Should disallow decorating private methods', () => {
-    for (const rawDecorator of [Memoise, MemoiseAll]) {
-      const decorator = rawDecorator as typeof MemoiseAll;
-
-      it(`@${decorator.name}`, () => {
-        expect(() => class {
-          public constructor() {
-            this.#x();
-          }
-
-          @decorator() // eslint-disable-line class-methods-use-this
-          #x() {
-            // void
-          }
-        }).to.throw('Can\'t memoise private instance methods');
-      });
-    }
-  });
-
-  describe('.has(), .delete() & .clear()', () => {
-    let inst: Foo;
-    let cache: Cache;
-
-    const K_0 = defaultSerialiser(0);
-    const K_1 = defaultSerialiser(1);
-
-    beforeEach(() => {
-      inst = new Foo();
-      cache = inst.bar[MEMOISE_CACHE]!;
-    });
-
-    it('.has() should return false for both keys initially', () => {
-      expect(cache.has(K_0)).to.eq(false, 'initial .has(K0)');
-      expect(cache.has(K_1)).to.eq(false, 'initial .has(K1)');
-    });
-
-    it('.should return true appropriately post-call', () => {
-      inst.bar(0);
-
-      expect(cache.has(K_0)).to.eq(true, 'after .bar(0) .has(K0)');
-      expect(cache.has(K_1)).to.eq(false, 'after .bar(0) .has(K1)');
-    });
-
-    it('Should return false post-clear', () => {
-      inst.bar(0);
-      cache.clear();
-
-      expect(cache.has(K_0)).to.eq(false, 'after .clear() .has(K0)');
-      expect(cache.has(K_1)).to.eq(false, 'after .clear() .has(K1)');
-    });
-
-    it('Should delete keys', () => {
-      inst.bar(0);
-      inst.bar(1);
-      cache.delete(K_0);
-
-      expect(cache.has(K_0)).to.eq(false, 'after .delete(K0) .has(K0)');
-      expect(cache.has(K_1)).to.eq(true, 'after .delete(K0) .has(K1)');
-    });
-  });
-
-  describe('When overriding a decorated method…', () => {
-    class Sup {
-      public calls = 0;
-
-      @Memoise(() => 0)
-      public foo(_v: number): void { // eslint-disable-line @typescript-eslint/no-unused-vars
-        ++this.calls;
-      }
-    }
-
-    class Sub extends Sup {
-      public sCalls = 0;
-
-      @Memoise()
-      public override foo(v: number): void {
-        ++this.sCalls;
-        return super.foo(v);
-      }
-    }
-
-    let inst: Sub;
-    before(() => {
-      inst = new Sub();
-      inst.foo(1);
-      inst.foo(0);
-      inst.foo(1);
-    });
-
-    it('Should memoise subclass calls', () => {
-      expect(inst.sCalls).to.eq(2);
-    });
-
-    it('Should bypass superclass memoisation', () => {
-      expect(inst.calls).to.eq(2);
-    });
-  });
-
-  describe('When argless…', () => {
-    class Argless {
-      public calls = 0;
 
       @MemoiseAll()
-      public foo(): void {
-        ++this.calls;
+      public static sPub() {
+        return 1;
+      }
+
+      @MemoiseAll()
+      public iPub() {
+        return 2;
+      }
+
+      @MemoiseAll()
+      static #sPriv() {
+        return 3;
+      }
+
+      @MemoiseAll()
+      #iPriv() {
+        return 4;
+      }
+
+      public get iPriv(): (this: Source) => number {
+        return this.#iPriv;
+      }
+
+      public static get sPriv(): (this: typeof Source) => number {
+        return Source.#sPriv;
       }
     }
 
-    let inst: Argless;
-    let cache: Cache;
-    beforeEach(() => {
-      inst = new Argless();
-      cache = inst.foo[MEMOISE_CACHE]!;
+    afterEach(Source.reset);
+
+    it('Public instance', () => {
+      const i1 = new Source();
+
+      i1.iPub();
+      expect(i1.iPub[MEMOISE_CACHE]!.has(Math.random())).to.eq(true, '1st instance');
+
+      const i2 = new Source();
+      expect(i2.iPub[MEMOISE_CACHE]!.has(Math.random())).to.eq(false, '2nd instance');
     });
 
-    it('Should memoise all calls', () => {
-      (inst.foo as Function).call(inst, 0);
-      (inst.foo as Function).call(inst, 1);
+    it('Private instance', () => {
+      const i1 = new Source();
 
-      expect(inst.calls).to.eq(1);
+      i1.iPriv();
+      expect(i1.iPriv[MEMOISE_CACHE]!.has(Math.random())).to.eq(true, '1st instance');
+
+      const i2 = new Source();
+      expect(i2.iPriv[MEMOISE_CACHE]!.has(Math.random())).to.eq(false, '2nd instance');
     });
 
-    it('Should clear', () => {
-      inst.foo();
+    it('Public static', () => {
+      expect(Source.sPub[MEMOISE_CACHE]!.has(Math.random())).to.eq(false, 'pre');
+      Source.sPub();
+      expect(Source.sPub[MEMOISE_CACHE]!.has(Math.random())).to.eq(true, 'post');
+    });
+
+    it('Private static', () => {
+      expect(Source.sPriv[MEMOISE_CACHE]!.has(Math.random())).to.eq(false, 'pre');
+      Source.sPriv();
+      expect(Source.sPriv[MEMOISE_CACHE]!.has(Math.random())).to.eq(true, 'post');
+    });
+  });
+
+  describe('Manipulation', () => {
+    it('Argless', () => {
+      class Src {
+        @MemoiseAll()
+        public static foo() {
+          return {};
+        }
+      }
+
+      const cache = Src.foo[MEMOISE_CACHE]!;
+      expect(cache.has(Math.random())).to.eq(false, 'has/initial');
+
+      const ret = Src.foo();
+      expect(cache.has(Math.random())).to.eq(true, 'has/post-get');
+
+      const ret2 = Src.foo();
+      expect(ret).to.eq(ret2, '1st cached return');
+
+      expect(cache.delete(Math.random())).to.eq(true, 'delete');
+      expect(cache.has(Math.random())).to.eq(false, 'has/post-delete');
+
+      const ret3 = Src.foo();
+      expect(ret3).to.not.eq(ret, '2nd return');
+
       cache.clear();
-      inst.foo();
-
-      expect(inst.calls).to.eq(2);
+      expect(cache.has(Math.random())).to.eq(false, 'has/post-clear');
     });
 
-    it('.has', () => {
-      inst.foo();
-      expect(cache.has(Math.random())).to.eq(true);
-      inst.foo[MEMOISE_CACHE]!.clear();
-      expect(cache.has(Math.random())).to.eq(false);
-    });
+    it('Arg…ful', () => {
+      class Src {
+        @Memoise(n => n)
+        public static foo(n: number) {
+          return {n} as const;
+        }
+      }
 
-    it('.delete', () => {
-      inst.foo();
-      expect(cache.has(Math.random())).to.eq(true, 'pre-delete');
+      const cache = Src.foo[MEMOISE_CACHE]!;
+      expect(cache.has(1)).to.eq(false, 'has/initial');
 
-      cache.delete(Math.random());
-      expect(cache.has(Math.random())).to.eq(false, 'post-delete');
+      const ret = Src.foo(1);
+      expect(cache.has(1)).to.eq(true, 'has/post-get');
+      expect(cache.has(10)).to.eq(false, 'has/diff key/post-get');
+
+      const ret2 = Src.foo(1);
+      expect(ret).to.eq(ret2, '1st cached return');
+
+      expect(cache.delete(1)).to.eq(true, 'delete');
+      expect(cache.has(1)).to.eq(false, 'has/post-delete');
+
+      const ret3 = Src.foo(1);
+      expect(ret3).to.not.eq(ret, '2nd return');
+
+      cache.clear();
+      expect(cache.has(1)).to.eq(false, 'has/post-clear');
     });
   });
 });
 
-describe('Arbitrary fn serialisation', () => {
-  it('With args', () => {
-    const fn = memoiseFunction((a: number) => ({a}));
+describe('Memoised functions', () => {
+  it('Argless', () => {
+    const memoed = memoiseArglessFunction(() => ({}));
 
-    const a = fn(1);
+    const r1 = memoed();
+    const r2 = memoed();
+    memoed[MEMOISE_CACHE].clear();
+    const r3 = memoed();
 
-    expect(a).to.deep.eq({a: 1}, 'deep');
-    expect(fn(1)).to.eq(a, 'shallow');
-    expect(fn(0)).to.deep.eq({a: 0}, 'repeat');
+    expect(r1).to.deep.eq({}, 'r1 === {}');
+    expect(r1).to.eq(r2, 'r1 === r2');
+    expect(r1).to.not.eq(r3, 'r1 !== r3');
   });
 
-  it('Without args', () => {
-    let calls = 0;
-    const fn = memoiseArglessFunction(() => {
-      ++calls;
-    });
+  it('Argy', () => {
+    const memoed = memoiseFunction((x: number) => ({x}));
 
-    fn();
-    fn();
+    const r1 = memoed(1);
+    const r2 = memoed(1);
+    const r3 = memoed(2);
+    memoed[MEMOISE_CACHE].clear();
+    const r4 = memoed(1);
 
-    expect(calls).to.eq(1);
+    expect(r1).to.deep.eq({x: 1}, 'r1 === {}');
+    expect(r1).to.eq(r2, 'r1 === r2');
+    expect(r1).to.not.deep.eq(r3, 'r1 !== r3');
+    expect(r1).to.not.eq(r4, 'r1 !== r4');
   });
 });

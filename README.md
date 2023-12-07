@@ -32,7 +32,7 @@ An ES7 decorator for memoising (caching) a method's response
 
 # Compatibility
 
-The library's only goal is to be compatible with Typescript 5 decorators which, at the time of writing, use the [2022-03 stage 3 decorators proposal](https://2ality.com/2022/10/javascript-decorators.html).
+The library's only goal is to be compatible with Typescript 5 decorators which, at the time of writing, use the [2022-03 stage 3 decorators proposal](https://2ality.com/2022/10/javascript-decorators.html). The bulk of your inputs' validation is offloaded to Typescript as well.
 
 # Usage
 ## Basic Usage

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import type {Cache} from './index';
+import {MemoiseIdentity} from './index';
 import {Memoise, MEMOISE_CACHE, MemoiseAll, memoiseArglessFunction, memoiseFunction} from './index';
 
 /* eslint-disable @typescript-eslint/no-magic-numbers,class-methods-use-this,max-lines-per-function,no-new,max-lines */
@@ -663,4 +664,23 @@ describe('Memoised functions', () => {
     expect(r1).to.not.deep.eq(r3, 'r1 !== r3');
     expect(r1).to.not.eq(r4, 'r1 !== r4');
   });
+});
+
+describe('identity', () => {
+  class Src {
+    @MemoiseIdentity()
+    static foo(x: number) {
+      return {x};
+    }
+  }
+
+  const c1 = Src.foo(1);
+  const c2 = Src.foo(1);
+  const c3 = Src.foo(0);
+  const c4 = Src.foo(0);
+
+  expect(c1).to.deep.eq({x: 1});
+  expect(c3).to.deep.eq({x: 0});
+  expect(c1).to.eq(c2, 'c1 === c2');
+  expect(c3).to.eq(c4, 'c3 === c4');
 });

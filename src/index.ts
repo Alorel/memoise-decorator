@@ -1,6 +1,13 @@
 import type {Cache} from './cache';
 import type {Decorator, SerialiserFn} from './core';
-import {applyDecorator, defaultSerialiser, MEMOISE_CACHE, memoiseArglessFunction, memoiseFunction} from './core';
+import {
+  applyDecorator,
+  defaultSerialiser,
+  identitySerialiser,
+  MEMOISE_CACHE,
+  memoiseArglessFunction,
+  memoiseFunction
+} from './core';
 
 /**
  * Memoise the method's return value based on call arguments
@@ -15,7 +22,20 @@ function MemoiseAll<T, R>(): Decorator<T, [], R> {
   return applyDecorator(false);
 }
 
-export {Memoise, MemoiseAll, MEMOISE_CACHE, defaultSerialiser, memoiseArglessFunction, memoiseFunction};
+/** Memoise based on the 1st argument */
+function MemoiseIdentity<T, A, R>(): Decorator<T, [A], R> {
+  return applyDecorator(true, identitySerialiser);
+}
+
+export {
+  Memoise,
+  MemoiseAll,
+  MemoiseIdentity,
+  MEMOISE_CACHE,
+  defaultSerialiser,
+  memoiseArglessFunction,
+  memoiseFunction
+};
 export type {SerialiserFn, Cache};
 
 declare global {

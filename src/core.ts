@@ -29,6 +29,11 @@ export function defaultSerialiser(...args: any[]): string {
   return JSON.stringify(args);
 }
 
+/** @internal */
+export function identitySerialiser<T>(value: T): T {
+  return value;
+}
+
 interface Memoised<T, A extends any[], R> extends Fn<T, A, R> {
   [MEMOISE_CACHE]: Cache;
 }

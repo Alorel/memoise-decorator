@@ -1,7 +1,15 @@
 import {expect} from 'chai';
-import type {Cache} from './index';
-import {MemoiseIdentity} from './index';
-import {Memoise, MEMOISE_CACHE, MemoiseAll, memoiseArglessFunction, memoiseFunction} from './index';
+import type {
+  Cache} from './index';
+import {
+  Memoise,
+  MEMOISE_CACHE,
+  MEMOISE_CACHE_TYPED,
+  MemoiseAll,
+  memoiseArglessFunction,
+  memoiseFunction,
+  MemoiseIdentity
+} from './index';
 
 /* eslint-disable @typescript-eslint/no-magic-numbers,class-methods-use-this,max-lines-per-function,no-new,max-lines */
 
@@ -19,10 +27,6 @@ class Base {
   public static nUnmemoed = 0;
 
   public static rets: any[] = [];
-
-  public get publicCache(): Cache | undefined {
-    return this.memoedInstance[MEMOISE_CACHE];
-  }
 
   public static initArgChecks(beforeCB: () => void): void {
     this.initCommon();
@@ -181,6 +185,10 @@ class Base {
   private static memoedStatic() {
     ++Base.nMemoed;
     return {};
+  }
+
+  public get publicCache(): Cache | undefined {
+    return this.memoedInstance[MEMOISE_CACHE];
   }
 
   public argedInstancePrivateDefaultS(a: number, b: number) {
@@ -440,24 +448,24 @@ describe('Class extensions', () => {
   class SubDeco extends Sup {
 
     @MemoiseAll()
-    public override iPub() {
-      return [super.iPub(), Sup.callCount++] as const;
+    public static override sPub() {
+      return [super.sPub(), Sup.callCount++] as const;
     }
 
     @MemoiseAll()
-    public static override sPub() {
-      return [super.sPub(), Sup.callCount++] as const;
+    public override iPub() {
+      return [super.iPub(), Sup.callCount++] as const;
     }
   }
 
   class SubUndeco extends Sup {
 
-    public override iPub() {
-      return [super.iPub(), Sup.callCount++] as const;
-    }
-
     public static override sPub() {
       return [super.sPub(), Sup.callCount++] as const;
+    }
+
+    public override iPub() {
+      return [super.iPub(), Sup.callCount++] as const;
     }
   }
 
@@ -509,6 +517,10 @@ describe('Class extensions', () => {
 describe('Cache', () => {
   describe('Access', () => {
     class Source {
+      public static get sPriv(): (this: typeof Source) => number {
+        return Source.#sPriv;
+      }
+
       public static reset(): void {
         Source.sPub[MEMOISE_CACHE]!.clear();
         Source.#sPriv[MEMOISE_CACHE]!.clear();
@@ -520,26 +532,22 @@ describe('Cache', () => {
       }
 
       @MemoiseAll()
-      public iPub() {
-        return 2;
-      }
-
-      @MemoiseAll()
       static #sPriv() {
         return 3;
-      }
-
-      @MemoiseAll()
-      #iPriv() {
-        return 4;
       }
 
       public get iPriv(): (this: Source) => number {
         return this.#iPriv;
       }
 
-      public static get sPriv(): (this: typeof Source) => number {
-        return Source.#sPriv;
+      @MemoiseAll()
+      public iPub() {
+        return 2;
+      }
+
+      @MemoiseAll()
+      #iPriv() {
+        return 4;
       }
     }
 
@@ -683,4 +691,132 @@ describe('identity', () => {
   expect(c3).to.deep.eq({x: 0});
   expect(c1).to.eq(c2, 'c1 === c2');
   expect(c3).to.eq(c4, 'c3 === c4');
+});
+
+describe('has/delete by args', () => {
+  interface Spec<T, A extends any[]> {
+    args: () => A,
+
+    label: string;
+
+    call(inst: T, args: A): any;
+
+    getCache(inst: T): Cache<T, A> | undefined;
+
+    has(cache: Cache<T, A>, args: A): boolean;
+
+    init(): T;
+
+    rm(cache: Cache<T, A>, args: A): boolean;
+  }
+
+  class Src {
+    @MemoiseAll()
+    public static s0() {
+      return {};
+    }
+
+    @Memoise()
+    public static s2(a: number, b: number) {
+      return {a, b};
+    }
+
+    @MemoiseAll()
+    public i0() {
+      return {};
+    }
+
+    @Memoise()
+    public i2(a: string, b: string) {
+      return {a, b};
+    }
+  }
+
+  const fnArgless = memoiseArglessFunction(function fnArgless() {
+    return {};
+  });
+
+  const fnArged = memoiseFunction(function fnArged(a: number, b: number) {
+    return [a, b] as const;
+  });
+
+  const specs = [
+    {
+      args: () => [],
+      call: inst => inst(),
+      getCache: inst => inst[MEMOISE_CACHE_TYPED](),
+      has: cache => cache.hasWithArgs(),
+      init: () => fnArgless,
+      label: 'Argless fn',
+      rm: cache => cache.deleteWithArgs()
+    } satisfies Spec<typeof fnArgless, []>,
+
+    {
+      args: () => [0, 1],
+      call: (inst, args) => inst(...args),
+      getCache: inst => inst[MEMOISE_CACHE_TYPED](),
+      has: (cache, args) => cache.hasWithArgs(...args),
+      init: () => fnArged,
+      label: 'Arged fn',
+      rm: (cache, args) => cache.deleteWithArgs(...args)
+    } satisfies Spec<typeof fnArged, [number, number]>,
+
+    // /////////////////////////
+    {
+      args: () => [],
+      call: inst => inst.s0(),
+      getCache: inst => inst.s0[MEMOISE_CACHE_TYPED](),
+      has: cache => cache.hasWithArgs(),
+      init: () => Src,
+      label: 'Argless static decorated',
+      rm: cache => cache.deleteWithArgs()
+    } satisfies Spec<typeof Src, []>,
+
+    {
+      args: () => [0, 1],
+      call: (inst, args) => inst.s2(...args),
+      getCache: inst => inst.s2[MEMOISE_CACHE_TYPED](),
+      has: (cache, args) => cache.hasWithArgs(...args),
+      init: () => Src,
+      label: 'Arged static decorated',
+      rm: (cache, args) => cache.deleteWithArgs(...args)
+    } satisfies Spec<typeof Src, [number, number]>,
+
+    {
+      args: () => [],
+      call: inst => inst.i0(),
+      getCache: inst => inst.i0[MEMOISE_CACHE_TYPED](),
+      has: cache => cache.hasWithArgs(),
+      init: () => new Src(),
+      label: 'Argless instance decorated',
+      rm: cache => cache.deleteWithArgs()
+    } satisfies Spec<Src, []>,
+
+    {
+      args: () => ['a', 'b'],
+      call: (inst, args) => inst.i2(...args),
+      getCache: inst => inst.i2[MEMOISE_CACHE_TYPED](),
+      has: (cache, args) => cache.hasWithArgs(...args),
+      init: () => new Src(),
+      label: 'Arged instance decorated',
+      rm: (cache, args) => cache.deleteWithArgs(...args)
+    } satisfies Spec<Src, [string, string]>
+  ];
+
+  for (const spec of specs as Array<Spec<any, any[]>>) {
+    it(spec.label, () => {
+      const state = spec.init();
+      const cache = spec.getCache(state)!;
+
+      expect(cache.hasWithArgs(...spec.args())).to.eq(false, 'has [1]');
+      expect(cache.deleteWithArgs(...spec.args())).to.eq(false, 'delete [1]');
+
+      spec.call(state, spec.args());
+      expect(cache.hasWithArgs(...spec.args())).to.eq(true, 'has [2]');
+      expect(cache.deleteWithArgs(...spec.args())).to.eq(true, 'delete [2]');
+
+      expect(cache.hasWithArgs(...spec.args())).to.eq(false, 'has [3]');
+      expect(cache.deleteWithArgs(...spec.args())).to.eq(false, 'delete [3]');
+    });
+  }
 });

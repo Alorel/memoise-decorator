@@ -1,10 +1,11 @@
 import type {Cache} from './cache';
-import type {Decorator, SerialiserFn} from './core';
+import type {Decorator, MemoiseCacheGetFn, SerialiserFn} from './core';
 import {
   applyDecorator,
   defaultSerialiser,
   identitySerialiser,
   MEMOISE_CACHE,
+  MEMOISE_CACHE_TYPED,
   memoiseArglessFunction,
   memoiseFunction
 } from './core';
@@ -32,6 +33,7 @@ export {
   MemoiseAll,
   MemoiseIdentity,
   MEMOISE_CACHE,
+  MEMOISE_CACHE_TYPED,
   defaultSerialiser,
   memoiseArglessFunction,
   memoiseFunction
@@ -42,6 +44,12 @@ declare global {
   interface Function {
 
     /** Always defined on decorated methods and explicitly memoised functions */
-    [MEMOISE_CACHE]?: Cache;
+    readonly [MEMOISE_CACHE]?: Cache;
+  }
+
+  interface CallableFunction {
+
+    /** Always returns non-undefined on decorated methods and explicitly memoised functions */
+    readonly [MEMOISE_CACHE_TYPED]: MemoiseCacheGetFn;
   }
 }

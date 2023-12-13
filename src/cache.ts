@@ -11,19 +11,21 @@ export interface Cache<K = any, A extends any[] = any[]> {
   /**
    * Delete a specific cache entry.
    * @param key The result of passing the method call args through the associated {@link SerialiserFn serialiser fn}
+   * @deprecated Use {@link Cache#deleteWithArgs deleteWithArgs()}
    */
   delete(key: K): boolean;
 
-  /** Like {@link Cache#delete}, but the key gets computed */
+  /** Like {@link Cache#delete delete()}, but the key gets auto-computed */
   deleteWithArgs(...args: A): boolean;
 
   /**
    * Check if a specific cache entry exists.
    * @param key See {@link Cache#delete delete()}
+   * @deprecated Use {@link Cache#hasWithArgs hasWithArgs()}
    */
   has(key: K): boolean;
 
-  /** Like {@link Cache#has}, but the key gets computed */
+  /** Like {@link Cache#has has()}, but the key gets auto-computed */
   hasWithArgs(...args: A): boolean;
 }
 

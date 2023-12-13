@@ -1,6 +1,6 @@
 {
   "name": "@aloreljs/memoise-decorator",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "An ES7 decorator for memoising (caching) a method's response",
   "main": "cjs/index.js",
   "module": "es/index.js",

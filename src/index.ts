@@ -14,7 +14,7 @@ import {
  * Memoise the method's return value based on call arguments
  * @param serialiser Serialiser to use for generating the cache key. Defaults to {@link defaultSerialiser}.
  */
-function Memoise<T, A extends [any, ...any[]], R>(serialiser?: SerialiserFn<T, A>): Decorator<T, A, R> {
+function Memoise<T, A extends any[], R>(serialiser?: SerialiserFn<T, A>): Decorator<T, A, R> {
   return applyDecorator(true, serialiser ?? defaultSerialiser);
 }
 

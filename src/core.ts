@@ -79,8 +79,8 @@ function setCache(fn: Function, cache: Cache): void {
   });
 }
 
-function memoiseFunction<T, A extends [any, ...any[]], R>(fn: Fn<T, A, R>): Memoised<T, A, R>;
-function memoiseFunction<T, A extends [any, ...any[]], R, K>(
+function memoiseFunction<T, A extends any[], R>(fn: Fn<T, A, R>): Memoised<T, A, R>;
+function memoiseFunction<T, A extends any[], R, K>(
   fn: Fn<T, A, R>,
   serialiser: SerialiserFn<T, A, K>
 ): Memoised<T, A, R>;
@@ -90,7 +90,7 @@ function memoiseFunction<T, A extends [any, ...any[]], R, K>(
  * @param fn The function to memoise
  * @param serialiser Serialiser to use for generating the cache key. Defaults to {@link defaultSerialiser}.
  */
-function memoiseFunction<T, A extends [any, ...any[]], R, K>(
+function memoiseFunction<T, A extends any[], R, K>(
   fn: Fn<T, A, R>,
   serialiser: SerialiserFn<T, A, K> = defaultSerialiser as SerialiserFn<T, A>
 ): Memoised<T, A, R> {
@@ -128,7 +128,7 @@ export function memoiseArglessFunction<T, R>(fn: Fn<T, [], R>): Memoised<T, [], 
 export function applyDecorator<T, R>(hasArgs: false): Decorator<T, [], R>;
 
 /** @internal */
-export function applyDecorator<T, A extends [any, ...any[]], R, K = any>(
+export function applyDecorator<T, A extends any[], R, K = any>(
   hasArgs: true,
   serialiser: SerialiserFn<T, A, K>
 ): Decorator<T, A, R>;

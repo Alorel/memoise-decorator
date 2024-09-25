@@ -360,6 +360,47 @@ describe('Custom serialiser', () => {
     new Base(); // warm up
     Base.initArgChecks(() => new Base().runInstanceArgedPrivateDefaultsS());
   });
+
+  it('Rich key', () => {
+    class Rich {
+      public arr: readonly string[] = [];
+
+      public numCalls = 0;
+
+      @Memoise(function (this: Rich) {
+        return this.arr;
+      })
+      public len(): number {
+        ++this.numCalls;
+
+        return this.arr.length;
+      }
+    }
+
+    let inst: Rich;
+
+    for (let i = 1; i <= 2; ++i) {
+      inst = new Rich();
+      let expectedCalls = 0;
+
+      expect(inst.len()).to.eq(0, 'len (0)');
+      expect(++expectedCalls).to.eq(1, 'calls (0)');
+
+      expect(inst.len()).to.eq(0, 'len (1)');
+      expect(expectedCalls).to.eq(1, 'calls (1)');
+
+      inst.arr = ['a'];
+      expect(inst.len()).to.eq(1, 'len (2)');
+      expect(++expectedCalls).to.eq(2, 'calls (2)');
+
+      expect(inst.len()).to.eq(1, 'len (3)');
+      expect(expectedCalls).to.eq(2, 'calls (3)');
+
+      inst.arr = [...inst.arr, 'b'];
+      expect(inst.len()).to.eq(2, 'len (4)');
+      expect(++expectedCalls).to.eq(3, 'calls (4)');
+    }
+  });
 });
 
 describe('Concurrent', () => {

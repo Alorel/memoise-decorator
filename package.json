@@ -45,7 +45,7 @@
     "lint:fix": "npm --scripts-prepend-node-path=auto run lint -- --fix"
   },
   "repository": {
-    "url": "git+ssh://git@github.com/Alorel/memoise-decorator.git"
+    "url": "git+https://github.com/Alorel/memoise-decorator.git"
   },
   "devDependencies": {
     "@alorel/eslint-config-base": "^1.0.18",
